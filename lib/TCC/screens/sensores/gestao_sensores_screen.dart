@@ -29,6 +29,13 @@ class _GestaoSensoresScreenState extends State<GestaoSensoresScreen> {
 
   String? _mensagem;
   List<String> _erros = [];
+  bool _carregando = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _carregar();
+  }
 
   @override
   void dispose() {
@@ -37,15 +44,25 @@ class _GestaoSensoresScreenState extends State<GestaoSensoresScreen> {
     super.dispose();
   }
 
-  void _cadastrar() {
+  Future<void> _carregar() async {
+    final resultado = await context.read<AppState>().carregarSensores();
+    if (!mounted) return;
+    setState(() {
+      _carregando = false;
+      if (resultado.temErro) _erros = resultado.erros;
+    });
+  }
+
+  Future<void> _cadastrar() async {
     if (!_formKey.currentState!.validate()) return;
     final app = context.read<AppState>();
-    final resultado = app.cadastrarSensor(
+    final resultado = await app.cadastrarSensor(
       nome: _nomeCtrl.text,
       tipo: _tipo,
       localizacao: _localizacaoCtrl.text,
       status: _status,
     );
+    if (!mounted) return;
     setState(() {
       _mensagem = resultado.temSucesso ? resultado.mensagem : null;
       _erros = resultado.erros;
@@ -61,9 +78,10 @@ class _GestaoSensoresScreenState extends State<GestaoSensoresScreen> {
     }
   }
 
-  void _alternarStatus(int id) {
+  Future<void> _alternarStatus(int id) async {
     final app = context.read<AppState>();
-    final resultado = app.alternarStatusSensor(id);
+    final resultado = await app.alternarStatusSensor(id);
+    if (!mounted) return;
     setState(() {
       _mensagem = resultado.temSucesso ? resultado.mensagem : null;
       _erros = resultado.erros;
@@ -75,6 +93,26 @@ class _GestaoSensoresScreenState extends State<GestaoSensoresScreen> {
     final app = context.watch<AppState>();
     final sensores = app.sensores;
     final dataFmt = DateFormat('dd/MM/yyyy HH:mm');
+
+    // Segunda camada de proteção: mesmo que a rota seja alcançada de algum
+    // jeito, usuário comum nunca vê o formulário/ações de gestão — só a
+    // API (api/sensores.php, exigirAdminApi) já bloqueia de verdade.
+    if (!app.ehAdmin) {
+      return Scaffold(
+        appBar: const Topbar(titulo: 'IndustrialOS — Sensores'),
+        body: const Center(
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: Text(
+              'Acesso restrito a administradores. Use a Consulta de '
+              'Sensores para visualização.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: AppColors.textoSuave),
+            ),
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       appBar: const Topbar(titulo: 'IndustrialOS — Sensores'),
@@ -94,6 +132,8 @@ class _GestaoSensoresScreenState extends State<GestaoSensoresScreen> {
                   const SizedBox(height: 16),
                   if (_mensagem != null) FeedbackBox.sucesso(_mensagem),
                   if (_erros.isNotEmpty) FeedbackBox.erros(_erros),
+                  if (_carregando) const LinearProgressIndicator(minHeight: 2),
+                  if (_carregando) const SizedBox(height: 16),
                   if (app.ehAdmin)
                     SectionCard(
                       child: Form(
