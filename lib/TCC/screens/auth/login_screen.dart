@@ -19,6 +19,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _loginCtrl = TextEditingController();
   final _senhaCtrl = TextEditingController();
   bool _senhaVisivel = false;
+  bool _carregando = false;
   String? _erro;
 
   @override
@@ -28,16 +29,26 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  void _autenticar() {
-    if (!_formKey.currentState!.validate()) return;
+  Future<void> _autenticar() async {
+    if (!_formKey.currentState!.validate() || _carregando) return;
+
+    setState(() {
+      _carregando = true;
+      _erro = null;
+    });
 
     final app = context.read<AppState>();
-    final resultado = app.login(_loginCtrl.text, _senhaCtrl.text);
+    final resultado = await app.login(_loginCtrl.text, _senhaCtrl.text);
+
+    if (!mounted) return;
 
     if (resultado.temErro) {
-      setState(() => _erro = resultado.erros.first);
+      setState(() {
+        _erro = resultado.erros.first;
+        _carregando = false;
+      });
     } else {
-      setState(() => _erro = null);
+      setState(() => _carregando = false);
       context.go('/painel');
     }
   }
@@ -159,28 +170,19 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         const SizedBox(height: 22),
                         ElevatedButton(
-                          onPressed: _autenticar,
-                          child: const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 2),
-                            child: Text('AUTENTICAR ACESSO'),
-                          ),
-                        ),
-                        const SizedBox(height: 18),
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: AppColors.fundo,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Text(
-                            'Ambiente de testes — login admin entra como '
-                            'administrador, qualquer outro login entra como '
-                            'usuário comum.',
-                            style: TextStyle(
-                              color: AppColors.textoSuave,
-                              fontSize: 12,
-                              height: 1.4,
-                            ),
+                          onPressed: _carregando ? null : _autenticar,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 2),
+                            child: _carregando
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const Text('AUTENTICAR ACESSO'),
                           ),
                         ),
                       ],
