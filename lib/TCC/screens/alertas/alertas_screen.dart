@@ -24,10 +24,27 @@ class AlertasScreen extends StatefulWidget {
 class _AlertasScreenState extends State<AlertasScreen> {
   String? _mensagem;
   List<String> _erros = [];
+  bool _carregando = true;
 
-  void _resolver(int id) {
+  @override
+  void initState() {
+    super.initState();
+    _carregar();
+  }
+
+  Future<void> _carregar() async {
+    final resultado = await context.read<AppState>().carregarAlertas();
+    if (!mounted) return;
+    setState(() {
+      _carregando = false;
+      if (resultado.temErro) _erros = resultado.erros;
+    });
+  }
+
+  Future<void> _resolver(int id) async {
     final app = context.read<AppState>();
-    final resultado = app.resolverAlerta(id);
+    final resultado = await app.resolverAlerta(id);
+    if (!mounted) return;
     setState(() {
       _mensagem = resultado.temSucesso ? resultado.mensagem : null;
       _erros = resultado.erros;
@@ -65,6 +82,8 @@ class _AlertasScreenState extends State<AlertasScreen> {
                   const SizedBox(height: 16),
                   if (_mensagem != null) FeedbackBox.sucesso(_mensagem),
                   if (_erros.isNotEmpty) FeedbackBox.erros(_erros),
+                  if (_carregando) const LinearProgressIndicator(minHeight: 2),
+                  if (_carregando) const SizedBox(height: 16),
 
                   // Cards de resumo por severidade
                   LayoutBuilder(
