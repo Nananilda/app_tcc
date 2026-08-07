@@ -37,6 +37,7 @@ class _RelatorioScreenState extends State<RelatorioScreen> {
   final _maxCtrl = TextEditingController();
 
   List<Leitura> _leituras = [];
+  bool _carregando = false;
 
   @override
   void initState() {
@@ -51,19 +52,25 @@ class _RelatorioScreenState extends State<RelatorioScreen> {
     super.dispose();
   }
 
-  void _filtrar() {
+  Future<void> _filtrar() async {
+    setState(() => _carregando = true);
     final app = context.read<AppState>();
-    var leituras = app.gerarLeiturasPeriodo(_dataIni, _dataFim);
-
-    if (_sensor != null) {
-      leituras = leituras.where((l) => l.sensorTipo == _sensor).toList();
-    }
     final min = double.tryParse(_minCtrl.text.replaceAll(',', '.'));
     final max = double.tryParse(_maxCtrl.text.replaceAll(',', '.'));
-    if (min != null) leituras = leituras.where((l) => l.valor >= min).toList();
-    if (max != null) leituras = leituras.where((l) => l.valor <= max).toList();
 
-    setState(() => _leituras = leituras.take(200).toList());
+    final leituras = await app.carregarRelatorio(
+      _dataIni,
+      _dataFim,
+      sensor: _sensor,
+      valorMin: min,
+      valorMax: max,
+    );
+
+    if (!mounted) return;
+    setState(() {
+      _leituras = leituras.take(200).toList();
+      _carregando = false;
+    });
   }
 
   void _limparFiltros() {
@@ -132,6 +139,8 @@ class _RelatorioScreenState extends State<RelatorioScreen> {
                     style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
                   ),
                   const SizedBox(height: 16),
+                  if (_carregando) const LinearProgressIndicator(minHeight: 2),
+                  if (_carregando) const SizedBox(height: 16),
 
                   // ── Filtros ──
                   SectionCard(
