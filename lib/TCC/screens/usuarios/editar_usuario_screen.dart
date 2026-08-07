@@ -41,7 +41,10 @@ class _EditarUsuarioScreenState extends State<EditarUsuarioScreen> {
     super.dispose();
   }
 
-  void _buscar() {
+  bool _buscando = false;
+  bool _salvando = false;
+
+  Future<void> _buscar() async {
     if (_buscaCtrl.text.trim().isEmpty) {
       setState(() {
         _erros = ['Digite um login para buscar.'];
@@ -51,9 +54,12 @@ class _EditarUsuarioScreenState extends State<EditarUsuarioScreen> {
       });
       return;
     }
+    setState(() => _buscando = true);
     final app = context.read<AppState>();
-    final usuario = app.buscarUsuarioPorLogin(_buscaCtrl.text);
+    final usuario = await app.buscarUsuarioPorLogin(_buscaCtrl.text);
+    if (!mounted) return;
     setState(() {
+      _buscando = false;
       _buscaRealizada = true;
       _sucesso = null;
       if (usuario == null) {
@@ -72,10 +78,11 @@ class _EditarUsuarioScreenState extends State<EditarUsuarioScreen> {
     });
   }
 
-  void _atualizar() {
+  Future<void> _atualizar() async {
     if (_usuarioEncontrado == null) return;
+    setState(() => _salvando = true);
     final app = context.read<AppState>();
-    final resultado = app.atualizarUsuario(
+    final resultado = await app.atualizarUsuario(
       id: _usuarioEncontrado!.id,
       nome: _nomeCtrl.text,
       login: _loginCtrl.text,
@@ -84,11 +91,18 @@ class _EditarUsuarioScreenState extends State<EditarUsuarioScreen> {
       senha: _senhaCtrl.text,
       confirmarSenha: _confirmarCtrl.text,
     );
+    if (!mounted) return;
+    Usuario? atualizado = _usuarioEncontrado;
+    if (resultado.temSucesso) {
+      atualizado = await app.buscarUsuarioPorLogin(_loginCtrl.text);
+    }
+    if (!mounted) return;
     setState(() {
       _sucesso = resultado.temSucesso ? resultado.mensagem : null;
       _erros = resultado.erros;
+      _salvando = false;
       if (resultado.temSucesso) {
-        _usuarioEncontrado = app.buscarUsuarioPorLogin(_loginCtrl.text);
+        _usuarioEncontrado = atualizado;
       }
     });
   }
@@ -128,8 +142,16 @@ class _EditarUsuarioScreenState extends State<EditarUsuarioScreen> {
                         ),
                         const SizedBox(width: 12),
                         ElevatedButton(
-                          onPressed: _buscar,
-                          child: const Text('Buscar'),
+                          onPressed: _buscando ? null : _buscar,
+                          child: _buscando
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Text('Buscar'),
                         ),
                       ],
                     ),
@@ -237,8 +259,16 @@ class _EditarUsuarioScreenState extends State<EditarUsuarioScreen> {
                           ),
                           const SizedBox(height: 18),
                           ElevatedButton(
-                            onPressed: _atualizar,
-                            child: const Text('Salvar alterações'),
+                            onPressed: _salvando ? null : _atualizar,
+                            child: _salvando
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Text('Salvar alterações'),
                           ),
                         ],
                       ),
