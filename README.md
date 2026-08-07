@@ -1,5 +1,5 @@
 # Sistema de monitoramento de ambiente industrial
-Recriação em Flutter (Dart) do sistema PHP tcc-main-atualizado — um painel de monitoramento industrial (sensores, alertas, gráficos, relatórios e gestão de usuários), usando go_router para navegação e provider para estado.
+Recriação em Flutter (Dart) do sistema PHP tcc-main-atualizado - um painel de monitoramento industrial (sensores, alertas, gráficos, relatórios e gestão de usuários), usando go_router para navegação e provider para estado.
 
 # Como rodar
 - flutter pub get
