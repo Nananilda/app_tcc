@@ -13,8 +13,23 @@ import '../../widgets/status_badge.dart';
 import '../../widgets/topbar.dart';
 
 /// Consulta somente leitura de sensores — equivalente a listar_sensores.php.
-class ListarSensoresScreen extends StatelessWidget {
+class ListarSensoresScreen extends StatefulWidget {
   const ListarSensoresScreen({super.key});
+
+  @override
+  State<ListarSensoresScreen> createState() => _ListarSensoresScreenState();
+}
+
+class _ListarSensoresScreenState extends State<ListarSensoresScreen> {
+  bool _carregando = true;
+
+  @override
+  void initState() {
+    super.initState();
+    context.read<AppState>().carregarSensores().then((_) {
+      if (mounted) setState(() => _carregando = false);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -38,31 +53,44 @@ class ListarSensoresScreen extends StatelessWidget {
                     style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
                   ),
                   const SizedBox(height: 6),
-                  RichText(
-                    text: TextSpan(
-                      style: const TextStyle(
+                  // Link para a Gestão de Sensores só aparece para admin —
+                  // usuário comum não tem acesso a essa área.
+                  if (app.ehAdmin)
+                    RichText(
+                      text: TextSpan(
+                        style: const TextStyle(
+                          color: AppColors.textoSuave,
+                          fontSize: 14,
+                        ),
+                        children: [
+                          const TextSpan(
+                            text: 'Lista somente leitura. Para cadastrar ou '
+                                'alterar sensores, acesse a ',
+                          ),
+                          TextSpan(
+                            text: 'Gestão de Sensores',
+                            style: const TextStyle(
+                              color: AppColors.primaria,
+                              decoration: TextDecoration.underline,
+                            ),
+                            recognizer: TapGestureRecognizer()
+                              ..onTap = () => context.go('/sensores/gestao'),
+                          ),
+                          const TextSpan(text: '.'),
+                        ],
+                      ),
+                    )
+                  else
+                    const Text(
+                      'Lista somente leitura dos sensores cadastrados.',
+                      style: TextStyle(
                         color: AppColors.textoSuave,
                         fontSize: 14,
                       ),
-                      children: [
-                        const TextSpan(
-                          text: 'Lista somente leitura. Para cadastrar ou '
-                              'alterar sensores, acesse a ',
-                        ),
-                        TextSpan(
-                          text: 'Gestão de Sensores',
-                          style: const TextStyle(
-                            color: AppColors.primaria,
-                            decoration: TextDecoration.underline,
-                          ),
-                          recognizer: TapGestureRecognizer()
-                            ..onTap = () => context.go('/sensores/gestao'),
-                        ),
-                        const TextSpan(text: '.'),
-                      ],
                     ),
-                  ),
                   const SizedBox(height: 18),
+                  if (_carregando) const LinearProgressIndicator(minHeight: 2),
+                  if (_carregando) const SizedBox(height: 16),
                   SectionCard(
                     child: sensores.isEmpty
                         ? const Text(
