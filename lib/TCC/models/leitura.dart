@@ -1,32 +1,23 @@
 import 'sensor.dart';
 
-enum Severidade {
-  critico('critico', 'Crítico'),
-  atencao('atencao', 'Atenção'),
-  info('info', 'Informativo');
-
-  final String chave;
-  final String label;
-
-  const Severidade(this.chave, this.label);
-}
-
-class Alerta {
-  final int id;
+/// Uma leitura pontual de um sensor, usada nos gráficos e relatórios.
+/// Equivalente às linhas da tabela `leitura_sensor` do backend PHP.
+class Leitura {
   final TipoSensor sensorTipo;
-  final Severidade severidade;
-  final String mensagem;
   final double valor;
-  bool resolvido;
-  final DateTime criadoEm;
+  final DateTime lidoEm;
 
-  Alerta({
-    required this.id,
+  const Leitura({
     required this.sensorTipo,
-    required this.severidade,
-    required this.mensagem,
     required this.valor,
-    this.resolvido = false,
-    required this.criadoEm,
+    required this.lidoEm,
   });
+
+  factory Leitura.fromJson(Map<String, dynamic> json) {
+    return Leitura(
+      sensorTipo: TipoSensor.porChave(json['sensor_tipo'] as String),
+      valor: double.parse(json['valor'].toString()),
+      lidoEm: DateTime.parse(json['lido_em'] as String),
+    );
+  }
 }
