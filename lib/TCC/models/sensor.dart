@@ -29,6 +29,13 @@ enum StatusSensor {
   final String label;
 
   const StatusSensor(this.chave, this.label);
+
+  static StatusSensor porChave(String chave) {
+    return StatusSensor.values.firstWhere(
+      (s) => s.chave == chave,
+      orElse: () => StatusSensor.ativo,
+    );
+  }
 }
 
 class Sensor {
@@ -47,4 +54,16 @@ class Sensor {
     this.status = StatusSensor.ativo,
     DateTime? criadoEm,
   }) : criadoEm = criadoEm ?? DateTime.now();
+
+  factory Sensor.fromJson(Map<String, dynamic> json) {
+    return Sensor(
+      id: int.parse(json['id'].toString()),
+      nome: json['nome'] as String,
+      tipo: TipoSensor.porChave(json['tipo'] as String),
+      localizacao: json['localizacao'] as String?,
+      status: StatusSensor.porChave(json['status'] as String),
+      criadoEm: DateTime.tryParse(json['criado_em']?.toString() ?? '') ??
+          DateTime.now(),
+    );
+  }
 }
