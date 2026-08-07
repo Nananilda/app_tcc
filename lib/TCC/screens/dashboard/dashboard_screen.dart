@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../app_theme.dart';
@@ -8,15 +7,43 @@ import '../../state/app_state.dart';
 import '../../widgets/topbar.dart';
 
 /// Painel principal — equivalente a app/views/dashboard/painel.php.
-class DashboardScreen extends StatelessWidget {
+class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
+
+  @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  Map<String, dynamic>? _resumo;
+  bool _carregando = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _carregar();
+  }
+
+  Future<void> _carregar() async {
+    final app = context.read<AppState>();
+    final resumo = await app.obterResumoDashboard();
+    if (!mounted) return;
+    setState(() {
+      _resumo = resumo;
+      _carregando = false;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final app = context.watch<AppState>();
-    final resumo = app.obterResumoDashboard();
-    final formatoHora = DateFormat('dd/MM/yyyy HH:mm');
-
+    final resumo = _resumo ??
+        {
+          'sensores_ativos': 0,
+          'sensores_total': 0,
+          'alertas_pendentes': 0,
+          'ultima_atualizacao': DateTime.now().toIso8601String(),
+        };
     return Scaffold(
       appBar: const Topbar(),
       body: SafeArea(
@@ -38,23 +65,23 @@ class DashboardScreen extends StatelessWidget {
                     style: TextStyle(color: AppColors.textoSuave, fontSize: 15),
                   ),
                   const SizedBox(height: 24),
+                  if (_carregando) const LinearProgressIndicator(minHeight: 2),
+                  if (_carregando) const SizedBox(height: 16),
                   LayoutBuilder(
                     builder: (context, constraints) {
                       final largo = constraints.maxWidth > 620;
                       final cards = [
                         _StatCard(
                           valor:
-                              '${resumo['sensoresAtivos']} / ${resumo['sensoresTotal']}',
+                              '${resumo['sensores_ativos']} / ${resumo['sensores_total']}',
                           label: 'Sensores ativos',
                         ),
                         _StatCard(
-                          valor: '${resumo['alertasPendentes']}',
+                          valor: '${resumo['alertas_pendentes']}',
                           label: 'Alertas pendentes',
                         ),
                         _StatCard(
-                          valor: formatoHora.format(
-                            resumo['ultimaAtualizacao'] as DateTime,
-                          ),
+                          valor: '${resumo['ultima_atualizacao']}',
                           label: 'Última atualização',
                         ),
                       ];
@@ -76,9 +103,9 @@ class DashboardScreen extends StatelessWidget {
                   Align(
                     alignment: Alignment.centerLeft,
                     child: OutlinedButton.icon(
-                      onPressed: () {
-                        app.logout();
-                        context.go('/login');
+                      onPressed: () async {
+                        await app.logout();
+                        if (context.mounted) context.go('/login');
                       },
                       icon: const Icon(Icons.logout, size: 18),
                       label: const Text('Logout'),
@@ -139,8 +166,11 @@ class _MenuGrid extends StatelessWidget {
       const _MenuItemData('📈', 'Gráficos de Sensores', '/graficos'),
       const _MenuItemData('⚠️', 'Alertas', '/alertas'),
       const _MenuItemData('📄', 'Relatórios', '/relatorios'),
-      const _MenuItemData('🛰️', 'Gestão de Sensores', '/sensores/gestao'),
       const _MenuItemData('📋', 'Consulta de Sensores', '/sensores/listar'),
+      // Gestão de Sensores é exclusiva de administradores — usuário comum
+      // usa apenas a Consulta de Sensores (somente leitura) acima.
+      if (ehAdmin)
+        const _MenuItemData('🛰️', 'Gestão de Sensores', '/sensores/gestao'),
       if (ehAdmin) const _MenuItemData('👤', 'Gestão de Cadastro', '/usuarios'),
     ];
 
