@@ -52,10 +52,12 @@ class _GraficosSensoresScreenState extends State<GraficosSensoresScreen> {
     super.dispose();
   }
 
-  void _atualizar() {
+  Future<void> _atualizar() async {
     final app = context.read<AppState>();
+    final leituras = await app.carregarLeituras(_sensor, _horas);
+    if (!mounted) return;
     setState(() {
-      _leituras = app.gerarLeituras(_sensor, _horas);
+      _leituras = leituras;
       _atualizadoEm = DateTime.now();
     });
   }
