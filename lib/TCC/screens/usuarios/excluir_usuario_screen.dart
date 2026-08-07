@@ -25,7 +25,9 @@ class _ExcluirUsuarioScreenState extends State<ExcluirUsuarioScreen> {
   String? _sucesso;
   List<String> _erros = [];
 
-  void _buscar() {
+  bool _buscando = false;
+
+  Future<void> _buscar() async {
     final app = context.read<AppState>();
     if (_buscaCtrl.text.trim().isEmpty) {
       setState(() {
@@ -35,8 +37,11 @@ class _ExcluirUsuarioScreenState extends State<ExcluirUsuarioScreen> {
       });
       return;
     }
-    final usuario = app.buscarUsuarioPorLogin(_buscaCtrl.text);
+    setState(() => _buscando = true);
+    final usuario = await app.buscarUsuarioPorLogin(_buscaCtrl.text);
+    if (!mounted) return;
     setState(() {
+      _buscando = false;
       _sucesso = null;
       if (usuario == null) {
         _erros = ['Usuário não encontrado com este login.'];
@@ -82,7 +87,8 @@ class _ExcluirUsuarioScreenState extends State<ExcluirUsuarioScreen> {
     if (!mounted) return;
 
     final app = context.read<AppState>();
-    final resultado = app.excluirUsuario(usuario.id);
+    final resultado = await app.excluirUsuario(usuario.id);
+    if (!mounted) return;
     setState(() {
       _sucesso = resultado.temSucesso ? resultado.mensagem : null;
       _erros = resultado.erros;
@@ -128,8 +134,16 @@ class _ExcluirUsuarioScreenState extends State<ExcluirUsuarioScreen> {
                         ),
                         const SizedBox(width: 12),
                         ElevatedButton(
-                          onPressed: _buscar,
-                          child: const Text('Buscar'),
+                          onPressed: _buscando ? null : _buscar,
+                          child: _buscando
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Text('Buscar'),
                         ),
                       ],
                     ),
