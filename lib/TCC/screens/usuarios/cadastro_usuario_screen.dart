@@ -39,9 +39,9 @@ class _CadastroUsuarioScreenState extends State<CadastroUsuarioScreen> {
     super.dispose();
   }
 
-  void _cadastrar() {
+  Future<void> _cadastrar() async {
     final app = context.read<AppState>();
-    final resultado = app.cadastrarUsuario(
+    final resultado = await app.cadastrarUsuario(
       nome: _nomeCtrl.text,
       login: _loginCtrl.text,
       senha: _senhaCtrl.text,
@@ -50,6 +50,7 @@ class _CadastroUsuarioScreenState extends State<CadastroUsuarioScreen> {
       status: _status,
     );
 
+    if (!mounted) return;
     setState(() {
       _sucesso = resultado.temSucesso ? resultado.mensagem : null;
       _erros = resultado.erros;
