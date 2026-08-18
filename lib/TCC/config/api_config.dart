@@ -11,7 +11,7 @@
 /// - Dispositivo físico / desktop / web na mesma rede: use o IP da máquina
 ///   que roda o Apache/PHP, ex.: "http://192.168.0.10/tcc-main/api".
 class ApiConfig {
-  static const String baseUrl = 'http://10.140.170.170/tcc-main/api';
+  static const String baseUrl = 'http://10.140.169.14/tcc-main/api';
 
   static const Duration timeout = Duration(seconds: 12);
 }
