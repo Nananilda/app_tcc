@@ -7,7 +7,6 @@ import 'screens/relatorios/relatorio_screen.dart';
 import 'screens/sensores/gestao_sensores_screen.dart';
 import 'screens/sensores/graficos_sensores_screen.dart';
 import 'screens/sensores/listar_sensores_screen.dart';
-import 'screens/usuarios/cadastro_usuario_screen.dart';
 import 'screens/usuarios/editar_usuario_screen.dart';
 import 'screens/usuarios/excluir_usuario_screen.dart';
 import 'screens/usuarios/gestao_usuarios_screen.dart';
@@ -82,10 +81,6 @@ GoRouter buildRouter(AppState appState) {
         path: '/usuarios',
         builder: (context, state) => const GestaoUsuariosScreen(),
         routes: [
-          GoRoute(
-            path: 'cadastro',
-            builder: (context, state) => const CadastroUsuarioScreen(),
-          ),
           GoRoute(
             path: 'editar',
             builder: (context, state) => const EditarUsuarioScreen(),

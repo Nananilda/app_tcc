@@ -172,6 +172,10 @@ class ApiService {
     return _get('usuarios.php', {'login': login});
   }
 
+  // Mantido sem uso por enquanto: a tela de cadastro foi tirada do app
+  // (só editar/excluir usuário ficaram visíveis), mas o endpoint
+  // api/usuarios.php ainda aceita acao=cadastrar normalmente — é só
+  // religar uma tela chamando este método para voltar a usar.
   Future<Map<String, dynamic>> cadastrarUsuario({
     required String nome,
     required String login,

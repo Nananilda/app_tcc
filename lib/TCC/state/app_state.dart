@@ -254,6 +254,9 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  // Mantido sem uso por enquanto (mesmo motivo do ApiService.cadastrarUsuario
+  // acima): a tela de cadastro foi tirada do app, mas a chamada continua
+  // pronta para quando ela voltar.
   Future<ResultadoOperacao> cadastrarUsuario({
     required String nome,
     required String login,
