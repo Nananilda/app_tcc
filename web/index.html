@@ -1,45 +1,94 @@
 <!DOCTYPE html>
-<html>
+<html lang="pt-BR">
 <head>
   <!--
-    If you are serving your web app in a path other than the root, change the
-    href value below to reflect the base path you are serving from.
-
-    The path provided below has to start and end with a slash "/" in order for
-    it to work correctly.
-
-    For more details:
-    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
-
-    This is a placeholder for base href that will be replaced by the value of
-    the `--base-href` argument provided to `flutter build`.
+    Se o app for publicado em uma pasta que não seja a raiz do servidor, o valor
+    de href abaixo muda sozinho com o argumento `--base-href` do `flutter build`.
+    Mais detalhes: https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
   -->
   <base href="$FLUTTER_BASE_HREF">
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="ÁKRON — Sistema de Monitoramento Industrial: sensores, gráficos, alertas e relatórios.">
+
+  <!-- Cor da barra do navegador no celular (acompanha o tema do aparelho) -->
+  <meta name="theme-color" content="#f1f4f8" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0d1218" media="(prefers-color-scheme: dark)">
+  <meta name="color-scheme" content="light dark">
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="app_tcc">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="ÁKRON">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>app_tcc</title>
+  <title>ÁKRON — Monitoramento Industrial</title>
   <link rel="manifest" href="manifest.json">
+
+  <!--
+    Tela de abertura: logo da marca enquanto o Flutter carrega. Acompanha o tema
+    claro/escuro (a escolha feita no app tem prioridade sobre o modo do aparelho)
+    e some sozinha quando o primeiro quadro do app é desenhado.
+  -->
+  <style>
+    html, body { margin: 0; height: 100%; background: #f1f4f8; }
+    #abertura {
+      position: fixed; inset: 0; z-index: 10;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 26px;
+      background: #f1f4f8; transition: opacity 0.35s ease;
+    }
+    #abertura .logo {
+      width: 130px; height: 152px; background: #607487;
+      -webkit-mask: url("assets/assets/images/akron_logo_completa.png") center / contain no-repeat;
+              mask: url("assets/assets/images/akron_logo_completa.png") center / contain no-repeat;
+    }
+    #abertura .barra { width: 120px; height: 3px; border-radius: 3px; overflow: hidden; background: rgba(96, 116, 135, 0.25); }
+    #abertura .barra::after {
+      content: ""; display: block; width: 40%; height: 100%; border-radius: 3px; background: #607487;
+      animation: abertura-vai-e-vem 1.1s ease-in-out infinite;
+    }
+    @keyframes abertura-vai-e-vem { 0% { margin-left: -40%; } 100% { margin-left: 100%; } }
+    @media (prefers-color-scheme: dark) {
+      html:not([data-tema="claro"]) body, html:not([data-tema="claro"]) #abertura { background: #0d1218; }
+      html:not([data-tema="claro"]) #abertura .logo, html:not([data-tema="claro"]) #abertura .barra::after { background: #9db3c8; }
+    }
+    html[data-tema="escuro"] body, html[data-tema="escuro"] #abertura { background: #0d1218; }
+    html[data-tema="escuro"] #abertura .logo, html[data-tema="escuro"] #abertura .barra::after { background: #9db3c8; }
+    @media (prefers-reduced-motion: reduce) { #abertura .barra::after { animation: none; margin-left: 30%; } }
+  </style>
+  <script>
+    // Tema escolhido no app (gravado pelo shared_preferences como "flutter.akron_tema")
+    try {
+      var escolha = JSON.parse(localStorage.getItem('flutter.akron_tema'));
+      if (escolha === 'claro' || escolha === 'escuro') document.documentElement.setAttribute('data-tema', escolha);
+    } catch (e) { /* sem armazenamento: vale o modo do aparelho */ }
+  </script>
 </head>
 <body>
-  <!--
-    You can customize the "flutter_bootstrap.js" script.
-    This is useful to provide a custom configuration to the Flutter loader
-    or to give the user feedback during the initialization process.
+  <div id="abertura" role="status" aria-label="Carregando o ÁKRON">
+    <div class="logo"></div>
+    <div class="barra"></div>
+  </div>
 
-    For more details:
-    * https://docs.flutter.dev/platform-integration/web/initialization
+  <script>
+    // Remove a tela de abertura quando o Flutter desenha o primeiro quadro
+    window.addEventListener('flutter-first-frame', function () {
+      var abertura = document.getElementById('abertura');
+      if (!abertura) return;
+      abertura.style.opacity = '0';
+      setTimeout(function () { abertura.remove(); }, 400);
+    });
+  </script>
+
+  <!--
+    Você pode personalizar o script "flutter_bootstrap.js" (configuração do
+    carregador ou aviso de progresso). Mais detalhes:
+    https://docs.flutter.dev/platform-integration/web/initialization
   -->
   <script src="flutter_bootstrap.js" async></script>
 </body>
