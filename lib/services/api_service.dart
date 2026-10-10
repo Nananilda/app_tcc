@@ -204,6 +204,32 @@ class ApiService {
     return _post('alertas.php', {'acao': 'resolver', 'alerta_id': alertaId});
   }
 
+  /// Cria um alerta manualmente (administrador). [valor] é opcional e pode
+  /// ter vírgula decimal ("36,5"): o servidor faz a conversão.
+  Future<Map<String, dynamic>> criarAlerta({
+    required int sensorId,
+    required String severidade,
+    required String mensagem,
+    String? valor,
+  }) {
+    return _post('alertas.php', {
+      'acao': 'criar',
+      'sensor_id': sensorId,
+      'severidade': severidade,
+      'mensagem': mensagem,
+      'valor': valor,
+    });
+  }
+
+  /// Registra uma leitura de sensor (administrador); se passar de um limite,
+  /// o servidor cria o alerta automaticamente (api/leituras.php, POST).
+  Future<Map<String, dynamic>> registrarLeitura({
+    required int sensorId,
+    required String valor,
+  }) {
+    return _post('leituras.php', {'sensor_id': sensorId, 'valor': valor});
+  }
+
   // ── Usuários (somente administrador) ────────────────────────────────────
 
   Future<Map<String, dynamic>> listarUsuarios() => _get('usuarios.php');

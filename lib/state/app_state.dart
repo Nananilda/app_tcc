@@ -314,6 +314,11 @@ class AppState extends ChangeNotifier {
 
   List<Alerta> _alertas = [];
 
+  /// Limites dos alertas automáticos por tipo de sensor (vêm do servidor).
+  Map<TipoSensor, LimitesSensor> _limitesAlerta = {};
+  Map<TipoSensor, LimitesSensor> get limitesAlerta =>
+      Map.unmodifiable(_limitesAlerta);
+
   /// Pendentes primeiro; dentro de cada grupo, os mais recentes no topo.
   List<Alerta> get alertas {
     final lista = List<Alerta>.from(_alertas);
@@ -333,6 +338,15 @@ class AppState extends ChangeNotifier {
       _alertas = (r['alertas'] as List)
           .map((e) => Alerta.fromJson(Map<String, dynamic>.from(e as Map)))
           .toList();
+      final limites = r['limites'];
+      if (limites is Map) {
+        _limitesAlerta = {
+          for (final e in limites.entries)
+            TipoSensor.porChave('${e.key}'): LimitesSensor.fromJson(
+              Map<String, dynamic>.from(e.value as Map),
+            ),
+        };
+      }
       notifyListeners();
       return const ResultadoOperacao();
     });
@@ -357,6 +371,69 @@ class AppState extends ChangeNotifier {
     return _executar(() async {
       final r = await _api.resolverAlerta(alertaId);
       final resultado = _resultado(r, 'Não foi possível resolver o alerta.');
+      if (!resultado.temErro) await carregarAlertas();
+      return resultado;
+    });
+  }
+
+  /// Cria um alerta manualmente (somente administrador): manutenção
+  /// programada, aviso da equipe, ocorrência observada etc. [valor] é a
+  /// medição, opcional (aceita vírgula decimal).
+  Future<ResultadoOperacao> criarAlerta({
+    required Sensor? sensor,
+    required Severidade? severidade,
+    required String mensagem,
+    String valor = '',
+  }) {
+    if (!ehAdmin) {
+      return Future.value(const ResultadoOperacao(erros: ['Acesso negado.']));
+    }
+
+    final erros = <String>[];
+    if (sensor == null) erros.add('Selecione o sensor do alerta.');
+    if (severidade == null) erros.add('Severidade inválida.');
+    if (mensagem.trim().length < 3) {
+      erros.add('A mensagem do alerta deve ter ao menos 3 caracteres.');
+    }
+    if (erros.isNotEmpty) return Future.value(ResultadoOperacao(erros: erros));
+
+    return _executar(() async {
+      final r = await _api.criarAlerta(
+        sensorId: sensor!.id,
+        severidade: severidade!.chave,
+        mensagem: mensagem.trim(),
+        valor: valor.trim().isEmpty ? null : valor.trim(),
+      );
+      final resultado = _resultado(r, 'Não foi possível criar o alerta.');
+      if (!resultado.temErro) await carregarAlertas();
+      return resultado;
+    });
+  }
+
+  /// Registra uma leitura (somente administrador). Se o valor passar de um
+  /// limite do tipo do sensor, o SERVIDOR cria o alerta automático — a
+  /// mensagem devolvida já informa se isso aconteceu.
+  Future<ResultadoOperacao> registrarLeitura({
+    required Sensor? sensor,
+    required String valor,
+  }) {
+    if (!ehAdmin) {
+      return Future.value(const ResultadoOperacao(erros: ['Acesso negado.']));
+    }
+
+    final erros = <String>[];
+    if (sensor == null) erros.add('Selecione o sensor da leitura.');
+    if (valor.trim().isEmpty) {
+      erros.add('Informe o valor da leitura como um número (ex.: 36,5).');
+    }
+    if (erros.isNotEmpty) return Future.value(ResultadoOperacao(erros: erros));
+
+    return _executar(() async {
+      final r = await _api.registrarLeitura(
+        sensorId: sensor!.id,
+        valor: valor.trim(),
+      );
+      final resultado = _resultado(r, 'Não foi possível registrar a leitura.');
       if (!resultado.temErro) await carregarAlertas();
       return resultado;
     });

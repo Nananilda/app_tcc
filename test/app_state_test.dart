@@ -1,3 +1,4 @@
+import 'package:app_tcc/models/alerta.dart';
 import 'package:app_tcc/models/sensor.dart';
 import 'package:app_tcc/models/usuario.dart';
 import 'package:app_tcc/services/api_service.dart';
@@ -282,6 +283,141 @@ void main() {
       );
       expect(r.erros, ['Acesso negado.']);
     });
+  });
+
+  group('alertas', () {
+    test(
+      'carregar alertas traz também os limites automáticos do servidor',
+      () async {
+        await entrarComo('maria.souza');
+        final r = await app.carregarAlertas();
+
+        expect(r.temErro, isFalse);
+        expect(app.alertas, hasLength(3));
+        expect(app.limitesAlerta, hasLength(6));
+        expect(
+          app.limitesAlerta[TipoSensor.temperatura]!.maximos[Severidade
+              .critico],
+          35,
+        );
+      },
+    );
+
+    test(
+      'funcionário não cria alerta nem registra leitura (nem chama o servidor)',
+      () async {
+        await entrarComo('maria.souza');
+        await app.carregarSensores();
+        final sensor = app.sensores.first;
+
+        final criar = await app.criarAlerta(
+          sensor: sensor,
+          severidade: Severidade.info,
+          mensagem: 'Teste de alerta',
+        );
+        final leitura = await app.registrarLeitura(sensor: sensor, valor: '40');
+
+        expect(criar.erros, ['Acesso negado.']);
+        expect(leitura.erros, ['Acesso negado.']);
+        expect(
+          servidor.chamadasA('leituras.php').where((r) => r.metodo == 'POST'),
+          isEmpty,
+        );
+        expect(
+          servidor.chamadasA('alertas.php').where((r) => r.metodo == 'POST'),
+          isEmpty,
+        );
+      },
+    );
+
+    test('criarAlerta confere os campos antes de chamar o servidor', () async {
+      await entrarComo('admin');
+      final r = await app.criarAlerta(
+        sensor: null,
+        severidade: null,
+        mensagem: 'ab',
+      );
+
+      expect(r.erros, hasLength(3));
+      expect(
+        servidor.chamadasA('alertas.php').where((r) => r.metodo == 'POST'),
+        isEmpty,
+      );
+    });
+
+    test('administrador cria alerta e a lista é recarregada', () async {
+      await entrarComo('admin');
+      await app.carregarSensores();
+      await app.carregarAlertas();
+
+      final r = await app.criarAlerta(
+        sensor: app.sensores.first,
+        severidade: Severidade.critico,
+        mensagem: '  Vazamento detectado  ',
+        valor: ' 12,5 ',
+      );
+
+      expect(r.mensagem, 'Alerta criado com sucesso.');
+      expect(app.alertas, hasLength(4));
+      expect(
+        servidor
+            .chamadasA('alertas.php')
+            .where((r) => r.metodo == 'POST')
+            .single
+            .corpo,
+        {
+          'acao': 'criar',
+          'sensor_id': 1,
+          'severidade': 'critico',
+          'mensagem': 'Vazamento detectado',
+          'valor': '12,5',
+        },
+      );
+    });
+
+    test(
+      'valor em branco vai como nulo e erro do servidor volta para a tela',
+      () async {
+        await entrarComo('admin');
+        await app.carregarSensores();
+
+        await app.criarAlerta(
+          sensor: app.sensores.first,
+          severidade: Severidade.info,
+          mensagem: 'Sem valor medido',
+        );
+        expect(
+          servidor
+              .chamadasA('alertas.php')
+              .where((r) => r.metodo == 'POST')
+              .single
+              .corpo['valor'],
+          isNull,
+        );
+
+        final inativo = app.sensores.firstWhere(
+          (s) => s.status == StatusSensor.inativo,
+        );
+        final leitura = await app.registrarLeitura(sensor: inativo, valor: '3');
+        expect(leitura.erros.single, contains('inativo'));
+      },
+    );
+
+    test(
+      'registrar leitura acima do limite devolve a mensagem do alerta automático',
+      () async {
+        await entrarComo('admin');
+        await app.carregarSensores();
+
+        final r = await app.registrarLeitura(
+          sensor: app.sensores.first,
+          valor: '36,4',
+        );
+
+        expect(r.mensagem, contains('Alerta crítico gerado automaticamente'));
+        expect(app.alertas.where((a) => !a.resolvido), hasLength(3));
+      },
+    );
   });
 
   group('servidor', () {

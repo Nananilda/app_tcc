@@ -17,8 +17,8 @@ import '../../widgets/titulos.dart';
 /// Tela de alertas — equivale a app/views/graficos/alerta.php.
 ///
 /// Mostra, por severidade, quantos alertas estão pendentes (cartões + gráfico
-/// de barras) e o histórico recente. Administradores podem marcar alertas
-/// como resolvidos.
+/// de barras) e o histórico recente. Administradores podem adicionar alertas
+/// (botão "Adicionar alerta") e marcar alertas como resolvidos.
 class AlertasScreen extends StatefulWidget {
   const AlertasScreen({super.key});
 
@@ -61,7 +61,24 @@ class _AlertasScreenState extends State<AlertasScreen> {
       secao: 'Alertas',
       aoAtualizar: _carregar,
       children: [
-        const TituloPagina('Alertas dos Sensores'),
+        // Título + botão "Adicionar alerta" (só administradores)
+        Wrap(
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 12,
+          children: [
+            const TituloPagina('Alertas dos Sensores'),
+            if (app.ehAdmin)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 18),
+                child: ElevatedButton.icon(
+                  onPressed: () => context.go('/alertas/novo'),
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text('Adicionar alerta'),
+                ),
+              ),
+          ],
+        ),
         AreaFeedback(resultado: _feedback),
         if (_carregando) ...[
           const LinearProgressIndicator(minHeight: 2),

@@ -105,6 +105,40 @@ void main() {
     );
   });
 
+  group('LimitesSensor', () {
+    test('lê o JSON do servidor e descreve as faixas', () {
+      final umidade = LimitesSensor.fromJson({
+        'min': {'atencao': 35, 'critico': 20},
+        'max': {'atencao': 80, 'critico': 90},
+      });
+      expect(umidade.minimos[Severidade.critico], 20);
+      expect(umidade.maximos[Severidade.atencao], 80);
+      expect(
+        umidade.faixa(Severidade.atencao, TipoSensor.umidade),
+        'abaixo de 35% ou acima de 80%',
+      );
+      expect(
+        umidade.faixa(Severidade.critico, TipoSensor.umidade),
+        'abaixo de 20% ou acima de 90%',
+      );
+
+      final temperatura = LimitesSensor.fromJson({
+        'max': {'atencao': 30, 'critico': 35.5},
+      });
+      expect(
+        temperatura.faixa(Severidade.critico, TipoSensor.temperatura),
+        'acima de 35,5 °C',
+      );
+    });
+
+    test('sem limite para a severidade mostra traço; JSON ruim é ignorado', () {
+      final semLimites = LimitesSensor.fromJson({'max': 'x', 'min': null});
+      expect(semLimites.faixa(Severidade.critico, TipoSensor.uv), '—');
+      expect(LimitesSensor.formatarLimite(8, 'índice'), 'índice 8');
+      expect(LimitesSensor.formatarLimite(1030, 'hPa'), '1.030 hPa');
+    });
+  });
+
   group('Usuario', () {
     test('lê o JSON da API e nunca carrega senha', () {
       final usuario = Usuario.fromJson({

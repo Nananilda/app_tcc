@@ -1,3 +1,4 @@
+import 'package:app_tcc/models/alerta.dart';
 import 'package:app_tcc/models/sensor.dart';
 import 'package:app_tcc/widgets/campo_selecao.dart';
 import 'package:app_tcc/widgets/tabela_dados.dart';
@@ -80,8 +81,188 @@ void main() {
       expect(find.text('Marcar resolvido'), findsNothing);
     });
 
+    testWidgets('só o administrador vê o botão "Adicionar alerta"', (
+      tester,
+    ) async {
+      await abrir(tester, 'admin', '/alertas');
+      expect(find.text('Adicionar alerta'), findsOneWidget);
+
+      await tocar(tester, find.text('Adicionar alerta'));
+      expect(find.text('Novo Alerta'), findsOneWidget);
+    });
+
+    testWidgets('funcionário não vê o botão nem entra em /alertas/novo', (
+      tester,
+    ) async {
+      await abrir(tester, 'maria.souza', '/alertas');
+      expect(find.text('Adicionar alerta'), findsNothing);
+
+      GoRouter.of(
+        tester.element(find.byType(Scaffold).first),
+      ).go('/alertas/novo');
+      await tester.pumpAndSettle();
+      expect(find.text('Novo Alerta'), findsNothing); // voltou para /alertas
+      expect(find.text('Alertas dos Sensores'), findsOneWidget);
+    });
+
     testWidgets('cabe em celular nos dois temas', (tester) async {
       await abrir(tester, 'admin', '/alertas', tamanho: const Size(360, 780));
+      expect(tester.takeException(), isNull);
+
+      await tester.tap(find.byTooltip('Mudar para o tema escuro'));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('Novo alerta (somente administrador)', () {
+    testWidgets('mostra os formulários e a tabela de limites do servidor', (
+      tester,
+    ) async {
+      await abrir(tester, 'admin', '/alertas/novo');
+
+      expect(find.text('Adicionar alerta manualmente'), findsOneWidget);
+      expect(
+        find.text('Alertas automáticos — registrar leitura'),
+        findsOneWidget,
+      );
+      expect(find.text('Limites dos alertas automáticos'), findsOneWidget);
+
+      // faixas formatadas a partir do JSON do servidor
+      expect(find.text('acima de 30 °C'), findsOneWidget);
+      expect(find.text('acima de 35 °C'), findsOneWidget);
+      expect(find.text('abaixo de 35% ou acima de 80%'), findsOneWidget);
+      expect(
+        find.text('abaixo de 1.000 hPa ou acima de 1.030 hPa'),
+        findsOneWidget,
+      );
+      expect(find.text('acima de índice 8'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('cria um alerta manual e limpa o formulário', (tester) async {
+      final app = await abrir(tester, 'admin', '/alertas/novo');
+
+      // sem preencher: o formulário não envia
+      await tocar(tester, find.text('Criar alerta'));
+      expect(find.text('Selecione o sensor.'), findsNWidgets(1));
+      expect(find.text('Mínimo 3 caracteres.'), findsOneWidget);
+      expect(
+        app.servidor.chamadasA('alertas.php').where((r) => r.metodo == 'POST'),
+        isEmpty,
+      );
+
+      await tocar(tester, find.byType(CampoSelecao<int>).first);
+      await tocar(
+        tester,
+        find.text('Sensor Ruído Galpão — Ruído (inativo)').last,
+      );
+      await tocar(tester, find.byType(CampoSelecao<Severidade>));
+      await tocar(tester, find.text('Crítico').last);
+      await digitar(tester, 'Valor medido (opcional)', '97,5');
+      await digitar(tester, 'Mensagem *', 'Manutenção da prensa amanhã');
+      await tocar(tester, find.text('Criar alerta'));
+
+      expect(find.text('Alerta criado com sucesso.'), findsOneWidget);
+      expect(
+        app.servidor
+            .chamadasA('alertas.php')
+            .where((r) => r.metodo == 'POST')
+            .single
+            .corpo,
+        {
+          'acao': 'criar',
+          'sensor_id': 2,
+          'severidade': 'critico',
+          'mensagem': 'Manutenção da prensa amanhã',
+          'valor': '97,5',
+        },
+      );
+      expect(
+        app.servidor.alertas.last['mensagem'],
+        'Manutenção da prensa amanhã',
+      );
+      // formulário limpo para o próximo
+      expect(find.text('Manutenção da prensa amanhã'), findsNothing);
+
+      // o novo alerta aparece na lista de alertas, pendente
+      GoRouter.of(tester.element(find.byType(Scaffold).first)).go('/alertas');
+      await tester.pumpAndSettle();
+      expect(find.text('— Manutenção da prensa amanhã'), findsOneWidget);
+      expect(find.text('Marcar resolvido'), findsNWidgets(3));
+    });
+
+    testWidgets('registrar leitura acima do limite gera alerta automático', (
+      tester,
+    ) async {
+      final app = await abrir(tester, 'admin', '/alertas/novo');
+
+      // só sensores ATIVOS na lista de leituras: abre e confere os itens
+      await tocar(tester, find.byType(CampoSelecao<int>).last);
+      expect(find.text('Sensor Ruído Galpão — Ruído (inativo)'), findsNothing);
+      await tocar(tester, find.text('Sensor Estufa — Temperatura').last);
+
+      await digitar(tester, 'Valor da leitura *', '38,2');
+      await tocar(tester, find.text('Registrar leitura'));
+
+      expect(
+        find.text(
+          'Leitura registrada. Alerta crítico gerado automaticamente: '
+          'Temperatura acima do limite crítico de 35 °C.',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        app.servidor
+            .chamadasA('leituras.php')
+            .where((r) => r.metodo == 'POST')
+            .single
+            .corpo,
+        {'sensor_id': 1, 'valor': '38,2'},
+      );
+
+      // a mesma situação de novo: nenhum alerta repetido
+      await digitar(tester, 'Valor da leitura *', '39');
+      await tocar(tester, find.text('Registrar leitura'));
+      expect(
+        find.textContaining('Já existe um alerta crítico pendente'),
+        findsOneWidget,
+      );
+      expect(
+        app.servidor.alertas
+            .where((a) => a['severidade'] == 'critico' && a['resolvido'] == 0)
+            .length,
+        2,
+      );
+
+      // leitura normal: só confirma
+      await digitar(tester, 'Valor da leitura *', '22');
+      await tocar(tester, find.text('Registrar leitura'));
+      expect(find.text('Leitura registrada.'), findsOneWidget);
+    });
+
+    testWidgets('erros do servidor aparecem no cartão do formulário', (
+      tester,
+    ) async {
+      await abrir(tester, 'admin', '/alertas/novo');
+
+      await tocar(tester, find.byType(CampoSelecao<int>).last);
+      await tocar(tester, find.text('Sensor Estufa — Temperatura').last);
+      await digitar(tester, 'Valor da leitura *', 'quente');
+      await tocar(tester, find.text('Registrar leitura'));
+      expect(
+        find.text('Informe o valor da leitura como um número (ex.: 36,5).'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('cabe em celular nos dois temas', (tester) async {
+      await abrir(
+        tester,
+        'admin',
+        '/alertas/novo',
+        tamanho: const Size(360, 780),
+      );
       expect(tester.takeException(), isNull);
 
       await tester.tap(find.byTooltip('Mudar para o tema escuro'));

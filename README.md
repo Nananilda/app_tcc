@@ -42,7 +42,8 @@ versões de celular em [`docs/capturas/celular`](docs/capturas/celular).
 | Endereço do servidor (botão "Servidor" do login) | ![Servidor](docs/capturas/desktop/02-login-servidor.png) |
 | Painel | ![Painel](docs/capturas/desktop/04-painel.png) |
 | Gráficos de sensores (atualiza a cada 15 s) | ![Gráficos](docs/capturas/desktop/05-graficos.png) |
-| Alertas | ![Alertas](docs/capturas/desktop/06-alertas.png) |
+| Alertas (com o botão **Adicionar alerta**, para administradores) | ![Alertas](docs/capturas/desktop/06-alertas.png) |
+| Novo alerta: manual, leitura de teste e limites automáticos (administrador) | ![Novo alerta](docs/capturas/desktop/15-novo-alerta.png) |
 | Relatório de qualidade ambiental | ![Relatórios](docs/capturas/desktop/07-relatorios.png) |
 | Consulta de sensores | ![Consulta](docs/capturas/desktop/08-sensores-consulta.png) |
 | Gestão de sensores (administrador) | ![Gestão de sensores](docs/capturas/desktop/09-sensores-gestao.png) |
@@ -113,10 +114,15 @@ que existia no `pubspec.yaml` mas não era usada, foi **removida**.
   (`Authorization: Bearer …`). Se o servidor responder 401 (sessão de 2 h vencida, conta
   inativada, etc.), o app volta ao login com um aviso.
 - **O que faltava:** a versão anterior já chamava a API, mas a pasta `api/` **não existia** no
-  repositório do sistema web, então nada funcionava de verdade. Ela foi criada (e testada — 73
+  repositório do sistema web, então nada funcionava de verdade. Ela foi criada (e testada — 101
   verificações) no repositório `tcc`; a lista de endpoints está no README de lá.
 - **Todas as ações** do app gravam no banco de verdade: cadastrar/ativar/desativar sensores,
-  resolver alertas, cadastrar/editar/excluir usuários.
+  resolver e **criar alertas** (manualmente ou registrando uma leitura que ultrapassa um limite),
+  cadastrar/editar/excluir usuários.
+- **Alertas manuais e automáticos:** o botão *Adicionar alerta* (administrador) abre a tela *Novo alerta*,
+  que cria alertas pela API (`POST alertas.php`, `acao: "criar"`) e registra leituras
+  (`POST leituras.php`) — se o valor passar de um limite, o servidor cria o alerta sozinho. Essa tela
+  exige a versão atual do sistema web (`tcc`), que traz esses dois endpoints e a lista de limites.
 - **Erros amigáveis:** servidor fora do ar, endereço errado, resposta inesperada e tempo esgotado
   (12 s) viram mensagens em português, sem travar o app.
 
@@ -217,7 +223,7 @@ apareçam mesmo em celulares.
 
 ```bash
 flutter analyze      # análise estática: sem avisos
-flutter test         # 79 testes
+flutter test         # 94 testes
 ```
 
 | Arquivo | O que cobre |
@@ -227,7 +233,7 @@ flutter test         # 79 testes
 | `api_config_test.dart` | normalização e validação do endereço do servidor |
 | `app_state_test.dart` | login, token Bearer, sessão expirada (401), permissões de administrador, cadastro/edição/exclusão |
 | `telas_test.dart` | o app inteiro rodando: login, tema (e persistência), painel, menus por perfil, fluxos de usuários |
-| `telas_dados_test.dart` | alertas, sensores, gráficos e relatório — em computador e em celular, claro e escuro |
+| `telas_dados_test.dart` | alertas (inclusive o novo alerta, manual e automático), sensores, gráficos e relatório — em computador e em celular, claro e escuro |
 
 Os testes usam um **servidor falso** (`test/apoio/servidor_falso.dart`) que imita a API PHP, então rodam
 sem rede nem banco. Eles já encontraram problemas reais durante o desenvolvimento (por exemplo, um
@@ -262,6 +268,7 @@ Bundle Identifier no Xcode).
 - O token fica só em memória: fechar o app exige novo login (escolha deliberada — nada sensível é gravado no aparelho).
 - Os gráficos atualizam por consulta periódica (a cada 15 s), não por *push*.
 - Alertas não geram notificação no celular.
+- Os limites dos alertas automáticos ficam no servidor (`AlertaModel::LIMITES`, no projeto `tcc`); o app só os exibe, não os edita.
 - Em produção: HTTPS e restrição de CORS no servidor; remover as liberações de HTTP em Android/iOS.
 
 ---

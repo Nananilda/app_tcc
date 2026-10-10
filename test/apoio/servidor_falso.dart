@@ -190,6 +190,7 @@ class ServidorFalso {
       case 'alertas.php':
         return _alertas(pedido, corpo, json);
       case 'leituras.php':
+        if (pedido.method == 'POST') return _registrarLeitura(corpo, json);
         return json({
           'sucesso': true,
           'labels': [
@@ -277,14 +278,147 @@ class ServidorFalso {
     }, 400);
   }
 
+  /// Limites dos alertas automáticos (os mesmos de AlertaModel::LIMITES).
+  static const Map<String, dynamic> limitesDeAlerta = {
+    'temperatura': {
+      'max': {'atencao': 30, 'critico': 35},
+    },
+    'ruido': {
+      'max': {'atencao': 85, 'critico': 95},
+    },
+    'qualidade_ar': {
+      'max': {'atencao': 100, 'critico': 150},
+    },
+    'umidade': {
+      'min': {'atencao': 35, 'critico': 20},
+      'max': {'atencao': 80, 'critico': 90},
+    },
+    'pressao': {
+      'min': {'atencao': 1000, 'critico': 990},
+      'max': {'atencao': 1030, 'critico': 1040},
+    },
+    'uv': {
+      'max': {'atencao': 6, 'critico': 8},
+    },
+  };
+
+  http.Response _recusa(
+    List<String> erros,
+    http.Response Function(Map<String, dynamic>, [int]) json,
+  ) => json({'sucesso': false, 'mensagem': '', 'erros': erros}, 422);
+
+  /// POST alertas.php acao=criar (mesmas validações do AlertaController).
+  http.Response _criarAlerta(
+    Map<String, dynamic> corpo,
+    http.Response Function(Map<String, dynamic>, [int]) json,
+  ) {
+    final sensor = sensores.where((s) => s['id'] == corpo['sensor_id']);
+    final mensagem = '${corpo['mensagem'] ?? ''}'.trim();
+    final erros = <String>[
+      if (sensor.isEmpty) 'Sensor não encontrado.',
+      if (!['info', 'atencao', 'critico'].contains(corpo['severidade']))
+        'Severidade inválida.',
+      if (mensagem.length < 3)
+        'A mensagem do alerta deve ter ao menos 3 caracteres.',
+    ];
+    if (erros.isNotEmpty) return _recusa(erros, json);
+
+    final valor = corpo['valor'] == null
+        ? null
+        : double.tryParse('${corpo['valor']}'.replaceAll(',', '.'));
+    final id =
+        alertas.map((a) => a['id'] as int).reduce((a, b) => a > b ? a : b) + 1;
+    alertas.add({
+      'id': id,
+      'sensor_tipo': sensor.first['tipo'],
+      'sensor_nome': sensor.first['nome'],
+      'severidade': corpo['severidade'],
+      'mensagem': mensagem,
+      'valor': valor?.toStringAsFixed(2),
+      'resolvido': 0,
+      'criado_em': '2026-10-09 16:00:00',
+    });
+    return json({
+      'sucesso': true,
+      'mensagem': 'Alerta criado com sucesso.',
+      'erros': const [],
+      'id': id,
+    });
+  }
+
+  /// POST leituras.php: grava a leitura e, para temperatura acima de 35 °C,
+  /// cria o alerta crítico (sem duplicar um igual ainda pendente).
+  http.Response _registrarLeitura(
+    Map<String, dynamic> corpo,
+    http.Response Function(Map<String, dynamic>, [int]) json,
+  ) {
+    final sensor = sensores.where((s) => s['id'] == corpo['sensor_id']);
+    if (sensor.isEmpty) return _recusa(['Sensor não encontrado.'], json);
+    if (sensor.first['status'] != 'ativo') {
+      return _recusa([
+        'O sensor "${sensor.first['nome']}" está inativo e não pode enviar leituras.',
+      ], json);
+    }
+    final valor = double.tryParse('${corpo['valor']}'.replaceAll(',', '.'));
+    if (valor == null) {
+      return _recusa([
+        'Informe o valor da leitura como um número (ex.: 36,5).',
+      ], json);
+    }
+
+    const texto = 'Temperatura acima do limite crítico de 35 °C';
+    if (sensor.first['tipo'] != 'temperatura' || valor <= 35) {
+      return json({
+        'sucesso': true,
+        'mensagem': 'Leitura registrada.',
+        'erros': const [],
+        'alerta': null,
+      });
+    }
+    final existente = alertas.where(
+      (a) => a['mensagem'] == texto && a['resolvido'] == 0,
+    );
+    if (existente.isNotEmpty) {
+      return json({
+        'sucesso': true,
+        'mensagem':
+            'Leitura registrada. Já existe um alerta crítico pendente para este limite: $texto.',
+        'erros': const [],
+      });
+    }
+    alertas.add({
+      'id': alertas.length + 1,
+      'sensor_tipo': 'temperatura',
+      'sensor_nome': sensor.first['nome'],
+      'severidade': 'critico',
+      'mensagem': texto,
+      'valor': valor.toStringAsFixed(2),
+      'resolvido': 0,
+      'criado_em': '2026-10-09 16:05:00',
+    });
+    return json({
+      'sucesso': true,
+      'mensagem':
+          'Leitura registrada. Alerta crítico gerado automaticamente: $texto.',
+      'erros': const [],
+    });
+  }
+
   http.Response _alertas(
     http.Request pedido,
     Map<String, dynamic> corpo,
     http.Response Function(Map<String, dynamic>, [int]) json,
   ) {
     if (pedido.method == 'GET') {
-      return json({'sucesso': true, 'alertas': alertas});
+      return json({
+        'sucesso': true,
+        'alertas': alertas,
+        'contagem': const {'critico': 1, 'atencao': 1, 'info': 0},
+        'limites': limitesDeAlerta,
+      });
     }
+
+    if (corpo['acao'] == 'criar') return _criarAlerta(corpo, json);
 
     if (corpo['acao'] == 'resolver') {
       alertas.firstWhere((a) => a['id'] == corpo['alerta_id'])['resolvido'] = 1;

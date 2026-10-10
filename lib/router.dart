@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import 'screens/alertas/alertas_screen.dart';
+import 'screens/alertas/novo_alerta_screen.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/dashboard/dashboard_screen.dart';
 import 'screens/relatorios/relatorio_screen.dart';
@@ -38,6 +39,13 @@ GoRouter buildRouter(AppState appState) {
         return '/painel';
       }
 
+      // Criar alerta (manual ou por leitura) também é exclusivo de administradores.
+      if (logado &&
+          localAtual.startsWith('/alertas/novo') &&
+          !appState.ehAdmin) {
+        return '/alertas';
+      }
+
       // Gestão de Sensores (cadastro/alteração de status) também é exclusiva
       // de administradores. Usuário comum vai para a Consulta de Sensores,
       // que é somente leitura.
@@ -63,6 +71,12 @@ GoRouter buildRouter(AppState appState) {
       GoRoute(
         path: '/alertas',
         builder: (context, state) => const AlertasScreen(),
+        routes: [
+          GoRoute(
+            path: 'novo',
+            builder: (context, state) => const NovoAlertaScreen(),
+          ),
+        ],
       ),
       GoRoute(
         path: '/relatorios',
