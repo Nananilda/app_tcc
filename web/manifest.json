@@ -1,11 +1,12 @@
 {
-    "name": "app_tcc",
-    "short_name": "app_tcc",
+    "name": "ÁKRON — Sistema de Monitoramento Industrial",
+    "short_name": "ÁKRON",
+    "lang": "pt-BR",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#0d1218",
+    "theme_color": "#0d1218",
+    "description": "ÁKRON: acompanhe sensores, gráficos, alertas e relatórios da sua operação.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

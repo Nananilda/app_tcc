@@ -8,5 +8,8 @@
 	<true/>
 	<key>com.apple.security.network.server</key>
 	<true/>
+	<!-- Acesso à rede: necessário para falar com a API do ÁKRON -->
+	<key>com.apple.security.network.client</key>
+	<true/>
 </dict>
 </plist>

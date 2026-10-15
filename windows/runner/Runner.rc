@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.example" "\0"
-            VALUE "FileDescription", "app_tcc" "\0"
+            VALUE "CompanyName", "AKRON" "\0"
+            VALUE "FileDescription", "AKRON - Sistema de Monitoramento Industrial" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "app_tcc" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 com.example. All rights reserved." "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 AKRON. All rights reserved." "\0"
             VALUE "OriginalFilename", "app_tcc.exe" "\0"
-            VALUE "ProductName", "app_tcc" "\0"
+            VALUE "ProductName", "AKRON" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

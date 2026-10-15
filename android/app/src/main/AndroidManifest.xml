@@ -1,6 +1,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- O app conversa com a API PHP do ÁKRON pela rede (sem isto, o APK de
+         release não consegue se conectar). -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+
+    <!-- usesCleartextTraffic: permite http:// (servidor do laboratório, IP local).
+         Em produção use https:// e REMOVA esta linha. -->
     <application
-        android:label="app_tcc"
+        android:label="ÁKRON"
+        android:usesCleartextTraffic="true"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
