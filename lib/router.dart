@@ -5,6 +5,10 @@ import 'screens/alertas/alertas_screen.dart';
 import 'screens/alertas/novo_alerta_screen.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/dashboard/dashboard_screen.dart';
+import 'screens/estoques/estoque_detalhes_screen.dart';
+import 'screens/estoques/estoque_form_screen.dart';
+import 'screens/estoques/estoques_screen.dart';
+import 'screens/perfil/perfil_screen.dart';
 import 'screens/relatorios/relatorio_screen.dart';
 import 'screens/sensores/gestao_sensores_screen.dart';
 import 'screens/sensores/graficos_sensores_screen.dart';
@@ -46,6 +50,15 @@ GoRouter buildRouter(AppState appState) {
         return '/alertas';
       }
 
+      // Cadastro e edição de estoque: somente administradores.
+      if (logado &&
+          !appState.ehAdmin &&
+          (localAtual == '/estoques/novo' ||
+              (localAtual.startsWith('/estoques/') &&
+                  localAtual.endsWith('/editar')))) {
+        return '/estoques';
+      }
+
       // Gestão de Sensores (cadastro/alteração de status) também é exclusiva
       // de administradores. Usuário comum vai para a Consulta de Sensores,
       // que é somente leitura.
@@ -63,6 +76,41 @@ GoRouter buildRouter(AppState appState) {
       GoRoute(
         path: '/painel',
         builder: (context, state) => const DashboardScreen(),
+      ),
+      GoRoute(
+        path: '/estoques',
+        builder: (context, state) => const EstoquesScreen(),
+        routes: [
+          // "novo" vem ANTES de ":id", senão seria lido como um id.
+          GoRoute(
+            path: 'novo',
+            builder: (context, state) => const EstoqueFormScreen(),
+          ),
+          GoRoute(
+            path: ':id',
+            builder: (context, state) {
+              final id = int.tryParse(state.pathParameters['id'] ?? '');
+              return id == null
+                  ? const _PaginaNaoEncontrada()
+                  : EstoqueDetalhesScreen(id: id);
+            },
+            routes: [
+              GoRoute(
+                path: 'editar',
+                builder: (context, state) {
+                  final id = int.tryParse(state.pathParameters['id'] ?? '');
+                  return id == null
+                      ? const _PaginaNaoEncontrada()
+                      : EstoqueFormScreen(id: id);
+                },
+              ),
+            ],
+          ),
+        ],
+      ),
+      GoRoute(
+        path: '/perfil',
+        builder: (context, state) => const PerfilScreen(),
       ),
       GoRoute(
         path: '/graficos',

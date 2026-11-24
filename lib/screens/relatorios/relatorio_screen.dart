@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../models/leitura.dart';
 import '../../models/sensor.dart';
@@ -29,7 +30,8 @@ class RelatorioScreen extends StatefulWidget {
 }
 
 class _RelatorioScreenState extends State<RelatorioScreen> {
-  static const _limiteDetalhe = 200;
+  static const _porPagina = 50;
+  int _estoqueId = 0; // 0 = todos
 
   TipoSensor? _sensor;
   DateTime _dataIni = DateTime.now().subtract(const Duration(days: 7));
@@ -46,6 +48,7 @@ class _RelatorioScreenState extends State<RelatorioScreen> {
   @override
   void initState() {
     super.initState();
+    context.read<AppState>().carregarEstoques();
     WidgetsBinding.instance.addPostFrameCallback((_) => _filtrar());
   }
 
@@ -56,11 +59,13 @@ class _RelatorioScreenState extends State<RelatorioScreen> {
     super.dispose();
   }
 
-  Future<void> _filtrar() async {
+  /// Com [acrescentar], busca a PRÓXIMA página e soma à tabela atual.
+  Future<void> _filtrar({bool acrescentar = false}) async {
     setState(() {
       _carregando = true;
       _erro = null;
     });
+    final pagina = acrescentar ? _resultado.pagina + 1 : 1;
     final min = double.tryParse(_minCtrl.text.replaceAll(',', '.'));
     final max = double.tryParse(_maxCtrl.text.replaceAll(',', '.'));
 
@@ -70,19 +75,84 @@ class _RelatorioScreenState extends State<RelatorioScreen> {
       sensor: _sensor,
       valorMin: min,
       valorMax: max,
+      estoqueId: _estoqueId == 0 ? null : _estoqueId,
+      pagina: pagina,
+      porPagina: _porPagina,
     );
 
     if (!mounted) return;
     setState(() {
-      if (resposta.ok) _resultado = resposta.dados!;
+      if (resposta.ok) {
+        final novo = resposta.dados!;
+        _resultado = acrescentar
+            ? RelatorioResultado(
+                leituras: [..._resultado.leituras, ...novo.leituras],
+                resumo: novo.resumo,
+                total: novo.total,
+                totalAlertas: novo.totalAlertas,
+                pagina: novo.pagina,
+                porPagina: novo.porPagina,
+                segundosForaLimites: novo.segundosForaLimites,
+              )
+            : novo;
+      }
       _erro = resposta.erro;
       _carregando = false;
     });
   }
 
+  bool _exportando = false;
+
+  /// Baixa TODOS os registros do filtro (não só a página) e abre o
+  /// compartilhamento/salvamento do sistema.
+  Future<void> _exportar(String formato) async {
+    setState(() {
+      _exportando = true;
+      _erro = null;
+    });
+    final min = double.tryParse(_minCtrl.text.replaceAll(',', '.'));
+    final max = double.tryParse(_maxCtrl.text.replaceAll(',', '.'));
+    final resposta = await context.read<AppState>().exportarRelatorio(
+      formato,
+      _dataIni,
+      _dataFim,
+      sensor: _sensor,
+      valorMin: min,
+      valorMax: max,
+      estoqueId: _estoqueId == 0 ? null : _estoqueId,
+    );
+    if (!mounted) return;
+    if (!resposta.ok) {
+      setState(() {
+        _exportando = false;
+        _erro = resposta.erro;
+      });
+      return;
+    }
+    final nome = 'relatorio-akron.$formato';
+    try {
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [
+            XFile.fromData(
+              resposta.dados!,
+              mimeType: formato == 'pdf' ? 'application/pdf' : 'text/csv',
+              name: nome,
+            ),
+          ],
+          fileNameOverrides: [nome],
+        ),
+      );
+    } catch (_) {
+      if (mounted) setState(() => _erro = 'Não foi possível compartilhar o arquivo.');
+    }
+    if (mounted) setState(() => _exportando = false);
+  }
+
   void _limparFiltros() {
     setState(() {
       _sensor = null;
+      _estoqueId = 0;
       _dataIni = DateTime.now().subtract(const Duration(days: 7));
       _dataFim = DateTime.now();
       _minCtrl.clear();
@@ -163,6 +233,19 @@ class _RelatorioScreenState extends State<RelatorioScreen> {
                       _filtrar();
                     },
                   );
+                  final estoque = CampoSelecao<int>(
+                    rotulo: 'Estoque',
+                    valor: _estoqueId,
+                    itens: [
+                      const DropdownMenuItem(value: 0, child: Text('— Todos —')),
+                      for (final e in context.watch<AppState>().estoques)
+                        DropdownMenuItem(value: e.id, child: Text(e.nome)),
+                    ],
+                    onChanged: (v) {
+                      setState(() => _estoqueId = v ?? 0);
+                      _filtrar();
+                    },
+                  );
                   final de = _CampoData(
                     rotulo: 'De',
                     texto: dataFmt.format(_dataIni),
@@ -195,6 +278,8 @@ class _RelatorioScreenState extends State<RelatorioScreen> {
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
+                        estoque,
+                        const SizedBox(height: 16),
                         sensor,
                         const SizedBox(height: 16),
                         LinhaCampos(larguraMinima: 0, children: [de, ate]),
@@ -212,6 +297,7 @@ class _RelatorioScreenState extends State<RelatorioScreen> {
                     spacing: 14,
                     runSpacing: 16,
                     children: [
+                      SizedBox(width: 230, child: estoque),
                       SizedBox(width: 230, child: sensor),
                       SizedBox(width: 160, child: de),
                       SizedBox(width: 160, child: ate),
@@ -235,6 +321,23 @@ class _RelatorioScreenState extends State<RelatorioScreen> {
                   ),
                 ],
               ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 12,
+                runSpacing: 8,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: _exportando ? null : () => _exportar('csv'),
+                    icon: const Icon(Icons.table_chart_outlined, size: 18),
+                    label: const Text('Exportar CSV'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: _exportando ? null : () => _exportar('pdf'),
+                    icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
+                    label: const Text('Exportar PDF'),
+                  ),
+                ],
+              ),
             ],
           ),
         ),
@@ -251,8 +354,9 @@ class _RelatorioScreenState extends State<RelatorioScreen> {
                 'Média',
                 'Mínimo',
                 'Máximo',
+                'Fora dos limites',
               ],
-              centralizar: const {1, 2, 3, 4},
+              centralizar: const {1, 2, 3, 4, 5},
               linhas: [
                 for (final r in resumo)
                   [
@@ -261,8 +365,17 @@ class _RelatorioScreenState extends State<RelatorioScreen> {
                     Text(_numero.format(r.media)),
                     Text(_numero.format(r.minimo)),
                     Text(_numero.format(r.maximo)),
+                    Text('${r.foraLimites}'),
                   ],
               ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: Text(
+              'Alertas no período: ${_resultado.totalAlertas}'
+              '${_resultado.segundosForaLimites > 0 ? " · Tempo estimado fora dos limites: ${Duration(seconds: _resultado.segundosForaLimites).inMinutes} min" : ""}',
+              style: TextStyle(color: c.textoSuave, fontSize: 13),
             ),
           ),
         ],
@@ -280,9 +393,7 @@ class _RelatorioScreenState extends State<RelatorioScreen> {
               ),
               const SizedBox(width: 8),
               Text(
-                leituras.length >= _limiteDetalhe
-                    ? '(últimas $_limiteDetalhe)'
-                    : '(${leituras.length} registros)',
+                '(${leituras.length} de ${_resultado.total} registros)',
                 style: TextStyle(color: c.textoSuave, fontSize: 13),
               ),
             ],
@@ -310,7 +421,9 @@ class _RelatorioScreenState extends State<RelatorioScreen> {
                             Text(l.sensorTipo.rotuloComUnidade),
                             if (l.sensorNome != null)
                               Text(
-                                l.sensorNome!,
+                                l.estoqueNome == null
+                                    ? l.sensorNome!
+                                    : '${l.sensorNome} · ${l.estoqueNome}',
                                 style: TextStyle(
                                   color: c.textoSuave,
                                   fontSize: 12,
@@ -327,6 +440,14 @@ class _RelatorioScreenState extends State<RelatorioScreen> {
             ),
           ),
 
+        if (_resultado.temMaisPaginas)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: OutlinedButton(
+              onPressed: _carregando ? null : () => _filtrar(acrescentar: true),
+              child: const Text('Carregar mais leituras'),
+            ),
+          ),
         NavRodape(
           links: [
             NavRodapeLink('← Voltar ao painel', () => context.go('/painel')),

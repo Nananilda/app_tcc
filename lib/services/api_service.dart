@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 
 import '../config/api_config.dart';
 
@@ -164,24 +165,108 @@ class ApiService {
 
   // ── Painel ──────────────────────────────────────────────────────────────
 
-  Future<Map<String, dynamic>> dashboard() => _get('dashboard.php');
+  Future<Map<String, dynamic>> dashboard({int? estoqueId}) => _get(
+    'dashboard.php',
+    estoqueId == null ? null : {'estoque_id': '$estoqueId'},
+  );
+
+  // ── Estoques ────────────────────────────────────────────────────────────
+
+  Future<Map<String, dynamic>> listarEstoques() => _get('estoques.php');
+
+  Future<Map<String, dynamic>> buscarEstoque(int id) =>
+      _get('estoques.php', {'id': '$id'});
+
+  Future<Map<String, dynamic>> cadastrarEstoque({
+    required String nome,
+    required String descricao,
+    required String localizacao,
+    required String status,
+  }) {
+    return _post('estoques.php', {
+      'acao': 'cadastrar',
+      'nome': nome,
+      'descricao': descricao,
+      'localizacao': localizacao,
+      'status': status,
+    });
+  }
+
+  Future<Map<String, dynamic>> atualizarEstoque({
+    required int id,
+    required String nome,
+    required String descricao,
+    required String localizacao,
+    required String status,
+  }) {
+    return _post('estoques.php', {
+      'acao': 'atualizar',
+      'id': id,
+      'nome': nome,
+      'descricao': descricao,
+      'localizacao': localizacao,
+      'status': status,
+    });
+  }
+
+  /// Desativa o estoque preservando o histórico (a API exige a confirmação).
+  Future<Map<String, dynamic>> desativarEstoque(int id) {
+    return _post('estoques.php', {
+      'acao': 'desativar',
+      'id': id,
+      'confirmacao': 'desativar',
+    });
+  }
 
   // ── Sensores ────────────────────────────────────────────────────────────
 
-  Future<Map<String, dynamic>> listarSensores() => _get('sensores.php');
+  /// Sensores visíveis ao usuário; [estoqueId] filtra por estoque.
+  Future<Map<String, dynamic>> listarSensores({int? estoqueId}) => _get(
+    'sensores.php',
+    estoqueId == null ? null : {'estoque_id': '$estoqueId'},
+  );
 
   Future<Map<String, dynamic>> cadastrarSensor({
     required String nome,
     required String tipo,
+    required int estoqueId,
     required String localizacao,
     required String status,
+    int intervaloComunicacao = 300,
+    Map<String, dynamic> limites = const {},
   }) {
     return _post('sensores.php', {
       'acao': 'cadastrar',
       'nome': nome,
       'tipo': tipo,
+      'estoque_id': estoqueId,
       'localizacao': localizacao,
       'status': status,
+      'intervalo_comunicacao': intervaloComunicacao,
+      ...limites,
+    });
+  }
+
+  Future<Map<String, dynamic>> atualizarSensor({
+    required int sensorId,
+    required String nome,
+    required String tipo,
+    required int estoqueId,
+    required String localizacao,
+    required String status,
+    int intervaloComunicacao = 300,
+    Map<String, dynamic> limites = const {},
+  }) {
+    return _post('sensores.php', {
+      'acao': 'atualizar',
+      'sensor_id': sensorId,
+      'nome': nome,
+      'tipo': tipo,
+      'estoque_id': estoqueId,
+      'localizacao': localizacao,
+      'status': status,
+      'intervalo_comunicacao': intervaloComunicacao,
+      ...limites,
     });
   }
 
@@ -198,10 +283,38 @@ class ApiService {
 
   // ── Alertas ─────────────────────────────────────────────────────────────
 
-  Future<Map<String, dynamic>> listarAlertas() => _get('alertas.php');
+  /// Lista paginada (50 por página). Filtros opcionais: [estoqueId],
+  /// [severidade] (info/atencao/critico) e [status]
+  /// (pendente/reconhecido/normalizado/resolvido).
+  Future<Map<String, dynamic>> listarAlertas({
+    int pagina = 1,
+    int? estoqueId,
+    String severidade = '',
+    String status = '',
+  }) {
+    return _get('alertas.php', {
+      'pagina': '$pagina',
+      if (estoqueId != null) 'estoque_id': '$estoqueId',
+      if (severidade.isNotEmpty) 'severidade': severidade,
+      if (status.isNotEmpty) 'status': status,
+    });
+  }
 
-  Future<Map<String, dynamic>> resolverAlerta(int alertaId) {
-    return _post('alertas.php', {'acao': 'resolver', 'alerta_id': alertaId});
+  /// Reconhece um alerta PENDENTE (a equipe viu e está cuidando).
+  Future<Map<String, dynamic>> reconhecerAlerta(int alertaId) {
+    return _post('alertas.php', {'acao': 'reconhecer', 'alerta_id': alertaId});
+  }
+
+  /// Conclui o atendimento; registra responsável, horário e [observacoes].
+  Future<Map<String, dynamic>> resolverAlerta(
+    int alertaId, {
+    String observacoes = '',
+  }) {
+    return _post('alertas.php', {
+      'acao': 'resolver',
+      'alerta_id': alertaId,
+      'observacoes': observacoes,
+    });
   }
 
   /// Cria um alerta manualmente (administrador). [valor] é opcional e pode
@@ -245,6 +358,7 @@ class ApiService {
     required String confirmar,
     required String tipo,
     required String status,
+    List<int> estoqueIds = const [],
   }) {
     return _post('usuarios.php', {
       'acao': 'cadastrar',
@@ -254,6 +368,7 @@ class ApiService {
       'confirmar': confirmar,
       'tipo': tipo,
       'status': status,
+      'estoque_ids': estoqueIds,
     });
   }
 
@@ -265,6 +380,8 @@ class ApiService {
     required String status,
     String senha = '',
     String confirmarSenha = '',
+    // Nulo preserva os vínculos atuais; lista vazia revoga todos.
+    List<int>? estoqueIds,
   }) {
     return _post('usuarios.php', {
       'acao': 'atualizar',
@@ -275,11 +392,13 @@ class ApiService {
       'status': status,
       'senha': senha,
       'confirmar_senha': confirmarSenha,
+      if (estoqueIds != null) 'estoque_ids': estoqueIds,
     });
   }
 
+  /// A API desativa a conta (preserva o histórico); `excluir` é alias.
   Future<Map<String, dynamic>> excluirUsuario(int id) {
-    return _post('usuarios.php', {'acao': 'excluir', 'id': id});
+    return _post('usuarios.php', {'acao': 'desativar', 'id': id});
   }
 
   // ── Leituras e relatórios ───────────────────────────────────────────────
@@ -287,8 +406,15 @@ class ApiService {
   Future<Map<String, dynamic>> leituras({
     required String sensor,
     required int horas,
+    int? estoqueId,
+    int? sensorId,
   }) {
-    return _get('leituras.php', {'sensor': sensor, 'horas': '$horas'});
+    return _get('leituras.php', {
+      'sensor': sensor,
+      'horas': '$horas',
+      if (estoqueId != null) 'estoque_id': '$estoqueId',
+      if (sensorId != null) 'sensor_id': '$sensorId',
+    });
   }
 
   Future<Map<String, dynamic>> relatorio({
@@ -297,6 +423,10 @@ class ApiService {
     String sensor = '',
     String valMin = '',
     String valMax = '',
+    int? estoqueId,
+    int? sensorId,
+    int pagina = 1,
+    int porPagina = 50,
   }) {
     return _get('relatorio.php', {
       'data_ini': dataIni,
@@ -304,6 +434,116 @@ class ApiService {
       'sensor': sensor,
       'val_min': valMin,
       'val_max': valMax,
+      if (estoqueId != null) 'estoque_id': '$estoqueId',
+      if (sensorId != null) 'sensor_id': '$sensorId',
+      'pagina': '$pagina',
+      'por_pagina': '$porPagina',
     });
+  }
+
+  // ── Conta (perfil e preferências do próprio usuário) ────────────────────
+
+  Future<Map<String, dynamic>> conta() => _get('conta.php');
+
+  /// Salva o nome do perfil (obrigatório na API). A identidade e as
+  /// permissões vêm da sessão — a API recusa `id`, `tipo`, `status` etc.
+  Future<Map<String, dynamic>> salvarConta({
+    required String nome,
+    String? tema,
+  }) {
+    return _post('conta.php', {'nome': nome, if (tema != null) 'tema': tema});
+  }
+
+  /// Salva SÓ a preferência visual (`claro`, `escuro` ou `automatico`).
+  Future<Map<String, dynamic>> salvarTema(String tema) {
+    return _post('conta.php', {'acao': 'tema', 'tema': tema});
+  }
+
+  /// Troca a senha da PRÓPRIA conta (a API exige reenviar o nome).
+  Future<Map<String, dynamic>> trocarSenhaComNome({
+    required String nome,
+    required String senhaAtual,
+    required String senha,
+    required String confirmarSenha,
+  }) {
+    return _post('conta.php', {
+      'nome': nome,
+      'senha_atual': senhaAtual,
+      'senha': senha,
+      'confirmar_senha': confirmarSenha,
+    });
+  }
+
+  /// Baixa o relatório COMPLETO (todos os registros, sem paginação) em
+  /// [formato] `csv` ou `pdf`, com os mesmos filtros da consulta.
+  Future<List<int>> baixarRelatorio({
+    required String formato,
+    required String dataIni,
+    required String dataFim,
+    String sensor = '',
+    String valMin = '',
+    String valMax = '',
+    int? estoqueId,
+    int? sensorId,
+  }) async {
+    try {
+      final resposta = await _client
+          .get(
+            _uri('relatorio.php', {
+              'formato': formato,
+              'data_ini': dataIni,
+              'data_fim': dataFim,
+              'sensor': sensor,
+              'val_min': valMin,
+              'val_max': valMax,
+              if (estoqueId != null) 'estoque_id': '$estoqueId',
+              if (sensorId != null) 'sensor_id': '$sensorId',
+            }),
+            headers: {if (_token != null) 'Authorization': 'Bearer $_token'},
+          )
+          .timeout(ApiConfig.timeout);
+      final tipo = resposta.headers['content-type'] ?? '';
+      if (resposta.statusCode == 200 && !tipo.contains('json')) {
+        return resposta.bodyBytes;
+      }
+      // Erro da API vem em JSON; reaproveita o tratamento de 401/422.
+      _decodificar(resposta);
+      throw const ApiException('Não foi possível gerar o arquivo.');
+    } on TimeoutException {
+      throw const ApiException('O servidor demorou demais para responder.');
+    } on http.ClientException {
+      throw ApiException(
+        'Não foi possível conectar ao servidor (${ApiConfig.baseUrl}).',
+      );
+    }
+  }
+
+  /// Envia a foto do perfil (JPEG/PNG até 2 MB; o servidor valida e
+  /// redimensiona). A API exige reenviar o nome em toda gravação.
+  Future<Map<String, dynamic>> enviarFoto({
+    required String nome,
+    required List<int> bytes,
+    required String nomeArquivo,
+  }) {
+    final extensao = nomeArquivo.toLowerCase().endsWith('.png') ? 'png' : 'jpeg';
+    return _enviar(() async {
+      final pedido = http.MultipartRequest('POST', _uri('conta.php'))
+        ..headers['Accept'] = 'application/json'
+        ..headers['Authorization'] = 'Bearer $_token'
+        ..fields['nome'] = nome
+        ..files.add(
+          http.MultipartFile.fromBytes(
+            'foto',
+            bytes,
+            filename: nomeArquivo,
+            contentType: MediaType('image', extensao),
+          ),
+        );
+      return http.Response.fromStream(await _client.send(pedido));
+    });
+  }
+
+  Future<Map<String, dynamic>> removerFoto({required String nome}) {
+    return _post('conta.php', {'nome': nome, 'remover_foto': '1'});
   }
 }

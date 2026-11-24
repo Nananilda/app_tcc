@@ -36,6 +36,31 @@ class TemaController extends ChangeNotifier {
     }
   }
 
+  /// Chave usada pela API (`claro`, `escuro`, `automatico`) do modo atual.
+  String get chaveConta => switch (_modo) {
+    ThemeMode.light => 'claro',
+    ThemeMode.dark => 'escuro',
+    ThemeMode.system => 'automatico',
+  };
+
+  /// Aplica o tema guardado na conta do usuário (vale também no aparelho).
+  Future<void> aplicarDaConta(String? chave) async {
+    final novo = switch (chave) {
+      'claro' => ThemeMode.light,
+      'escuro' => ThemeMode.dark,
+      'automatico' => ThemeMode.system,
+      _ => null,
+    };
+    if (novo == null || novo == _modo) return;
+    _modo = novo;
+    notifyListeners();
+    try {
+      await _prefs?.setString(_chavePrefs, chaveConta);
+    } catch (_) {
+      // Vale nesta sessão mesmo que não consiga gravar.
+    }
+  }
+
   /// Alterna entre claro e escuro a partir do brilho que está sendo exibido
   /// agora ([brilhoAtual]) — assim, quem estava no "automático" troca para o
   /// oposto do que está vendo.

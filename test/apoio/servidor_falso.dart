@@ -57,6 +57,12 @@ class ServidorFalso {
       'localizacao': 'Estufa 1',
       'status': 'ativo',
       'criado_em': '2026-10-01 08:00:00',
+      'estoque_id': 1,
+      'estoque_nome': 'Galpão A',
+      'intervalo_comunicacao': 300,
+      'comunicacao': 'online',
+      'ultimo_valor': 25.5,
+      'ultima_leitura': '2026-10-09 12:00:00',
     },
     {
       'id': 2,
@@ -65,6 +71,36 @@ class ServidorFalso {
       'localizacao': null,
       'status': 'inativo',
       'criado_em': '2026-10-02 10:30:00',
+      'estoque_id': 1,
+      'estoque_nome': 'Galpão A',
+      'intervalo_comunicacao': 300,
+      'comunicacao': 'inativo',
+    },
+  ];
+
+  /// Estoques (formato de api/estoques.php, com os 3 estados independentes).
+  final List<Map<String, dynamic>> estoques = [
+    {
+      'id': 1,
+      'nome': 'Galpão A',
+      'descricao': 'Estoque principal',
+      'localizacao': 'Mococa',
+      'status': 'ativo',
+      'condicao_ambiental': 'atencao',
+      'condicao': 'Atenção',
+      'comunicacao_estado': 'parcial',
+      'comunicacao_rotulo': 'Comunicação parcial',
+      'situacao_cadastral': 'ativo',
+      'sensores_total': 2,
+      'sensores_ativos': 1,
+      'sensores_online': 1,
+      'sensores_sem_comunicacao': 0,
+      'sensores_sem_comunicacao_nomes': [],
+      'sensores_criticos': 0,
+      'sensores_atencao': 1,
+      'alertas_ativos': 2,
+      'alertas_criticos_pendentes': 1,
+      'ultima_leitura': '2026-10-09 12:00:00',
     },
   ];
 
@@ -78,6 +114,9 @@ class ServidorFalso {
       'mensagem': 'Temperatura acima do limite',
       'valor': '41.50',
       'resolvido': 0,
+      'status': 'pendente',
+      'estoque_id': 1,
+      'estoque_nome': 'Galpão A',
       'criado_em': '2026-10-09 13:00:00',
     },
     {
@@ -88,6 +127,9 @@ class ServidorFalso {
       'mensagem': 'Ruído elevado no turno',
       'valor': '88.00',
       'resolvido': 0,
+      'status': 'pendente',
+      'estoque_id': 1,
+      'estoque_nome': 'Galpão A',
       'criado_em': '2026-10-09 09:15:00',
     },
     {
@@ -98,6 +140,9 @@ class ServidorFalso {
       'mensagem': 'Umidade normalizada',
       'valor': '55.00',
       'resolvido': 1,
+      'status': 'resolvido',
+      'estoque_id': 1,
+      'estoque_nome': 'Galpão A',
       'criado_em': '2026-10-08 18:00:00',
     },
   ];
@@ -179,11 +224,50 @@ class ServidorFalso {
         return json({
           'sucesso': true,
           'resumo': {
+            'estoques_total': 1,
+            'sensores_online': 1,
             'sensores_ativos': 6,
             'sensores_total': 7,
             'alertas_pendentes': 5,
-            'ultima_atualizacao': '09/10/2026 14:30',
+            'estoques_irregulares': 1,
+            'estoques_comunicacao': 0,
+            'ultima_atualizacao': '2026-10-09 14:30:00',
+            'atuais': [
+              {
+                'id': 1,
+                'nome': 'Sensor Estufa',
+                'tipo': 'temperatura',
+                'estoque_id': 1,
+                'estoque_nome': 'Galpão A',
+                'ultimo_valor': 25.5,
+                'lido_em': '2026-10-09 14:30:00',
+                'comunicacao': 'online',
+                'situacao_ambiental': 'normal',
+                'ultima_origem': 'sensor',
+              },
+            ],
+            'alertas_recentes': [
+              {
+                'id': 1,
+                'mensagem': 'Temperatura acima do limite',
+                'severidade': 'critico',
+                'status': 'pendente',
+                'sensor_nome': 'Sensor Estufa',
+                'estoque_nome': 'Galpão A',
+                'criado_em': '2026-10-09 13:00:00',
+              },
+            ],
+            'erro': '',
           },
+        });
+      case 'estoques.php':
+        return _estoques(pedido, corpo, json);
+      case 'conta.php':
+        return json({
+          'sucesso': true,
+          'mensagem': 'Salvo.',
+          'erros': const [],
+          'usuario': {...usuarios['admin']!, 'tema': 'claro'},
         });
       case 'sensores.php':
         return _sensores(pedido, corpo, json);
@@ -198,6 +282,28 @@ class ServidorFalso {
               '2026-10-09 ${(h + 6).toString().padLeft(2, '0')}:00:00',
           ],
           'valores': [for (var h = 0; h < 12; h++) 22.0 + h * 0.5],
+          'pontos': [
+            for (var h = 0; h < 12; h++)
+              {
+                'sensor_id': 1,
+                'sensor_nome': 'Sensor Estufa',
+                'sensor_tipo': 'temperatura',
+                'estoque_id': 1,
+                'lido_em': '2026-10-09 ${(h + 6).toString().padLeft(2, '0')}:00:00',
+                'valor': 22.0 + h * 0.5,
+                'lacuna_antes': h == 6,
+              },
+          ],
+          'lacunas': [
+            {
+              'sensor_id': 1,
+              'de': '2026-10-09 11:00:00',
+              'ate': '2026-10-09 12:00:00',
+              'segundos': 3600,
+              'aberta': false,
+            },
+          ],
+          'sensores_desatualizados': const [],
           'total': 144,
         });
       case 'relatorio.php':
@@ -224,14 +330,64 @@ class ServidorFalso {
               'media': '24.75',
               'minimo': '24.00',
               'maximo': '25.50',
+              'fora_limites': 1,
             },
           ],
+          'total': 2,
+          'total_alertas': 1,
+          'segundos_fora_limites': 600,
         });
       case 'usuarios.php':
         return _usuarios(pedido, corpo, json);
       default:
         return json({'sucesso': false, 'mensagem': 'Não encontrado.'}, 404);
     }
+  }
+
+  http.Response _estoques(
+    http.Request pedido,
+    Map<String, dynamic> corpo,
+    http.Response Function(Map<String, dynamic>, [int]) json,
+  ) {
+    if (pedido.method == 'GET') {
+      return json({'sucesso': true, 'estoques': estoques});
+    }
+    switch (corpo['acao']) {
+      case 'cadastrar':
+        estoques.add({
+          ...estoques.first,
+          'id': estoques.length + 1,
+          'nome': corpo['nome'],
+          'status': corpo['status'],
+        });
+        return json({
+          'sucesso': true,
+          'mensagem': 'Estoque salvo com sucesso.',
+          'erros': const [],
+        });
+      case 'atualizar':
+        final alvo = estoques.firstWhere((e) => e['id'] == corpo['id']);
+        alvo
+          ..['nome'] = corpo['nome']
+          ..['status'] = corpo['status'];
+        return json({
+          'sucesso': true,
+          'mensagem': 'Estoque salvo com sucesso.',
+          'erros': const [],
+        });
+      case 'desativar':
+        estoques.firstWhere((e) => e['id'] == corpo['id'])['status'] = 'inativo';
+        return json({
+          'sucesso': true,
+          'mensagem': 'Estoque desativado. Histórico preservado.',
+          'erros': const [],
+        });
+    }
+    return json({
+      'sucesso': false,
+      'mensagem': 'Ação desconhecida.',
+      'erros': const ['Ação desconhecida.'],
+    }, 400);
   }
 
   http.Response _sensores(
@@ -254,10 +410,26 @@ class ServidorFalso {
               : corpo['localizacao'],
           'status': corpo['status'],
           'criado_em': '2026-10-09 15:00:00',
+          'estoque_id': corpo['estoque_id'],
+          'estoque_nome': 'Galpão A',
+          'intervalo_comunicacao': corpo['intervalo_comunicacao'],
+          'comunicacao': 'sem_comunicacao',
         });
         return json({
           'sucesso': true,
           'mensagem': 'Sensor cadastrado com sucesso!',
+          'erros': const [],
+        });
+      case 'atualizar':
+        final alvo = sensores.firstWhere((s) => s['id'] == corpo['sensor_id']);
+        alvo
+          ..['nome'] = corpo['nome']
+          ..['tipo'] = corpo['tipo']
+          ..['estoque_id'] = corpo['estoque_id']
+          ..['status'] = corpo['status'];
+        return json({
+          'sucesso': true,
+          'mensagem': 'Sensor atualizado com sucesso!',
           'erros': const [],
         });
       case 'toggle_status':
@@ -336,6 +508,7 @@ class ServidorFalso {
       'mensagem': mensagem,
       'valor': valor?.toStringAsFixed(2),
       'resolvido': 0,
+      'status': 'pendente',
       'criado_em': '2026-10-09 16:00:00',
     });
     return json({
@@ -376,7 +549,7 @@ class ServidorFalso {
       });
     }
     final existente = alertas.where(
-      (a) => a['mensagem'] == texto && a['resolvido'] == 0,
+      (a) => a['mensagem'] == texto && a['status'] == 'pendente',
     );
     if (existente.isNotEmpty) {
       return json({
@@ -394,6 +567,7 @@ class ServidorFalso {
       'mensagem': texto,
       'valor': valor.toStringAsFixed(2),
       'resolvido': 0,
+      'status': 'pendente',
       'criado_em': '2026-10-09 16:05:00',
     });
     return json({
@@ -414,14 +588,29 @@ class ServidorFalso {
         'sucesso': true,
         'alertas': alertas,
         'contagem': const {'critico': 1, 'atencao': 1, 'info': 0},
+        'total': alertas.length,
+        'pagina': 1,
+        'por_pagina': 50,
         'limites': limitesDeAlerta,
       });
     }
 
     if (corpo['acao'] == 'criar') return _criarAlerta(corpo, json);
 
+    if (corpo['acao'] == 'reconhecer') {
+      alertas.firstWhere((a) => a['id'] == corpo['alerta_id'])['status'] =
+          'reconhecido';
+      return json({
+        'sucesso': true,
+        'mensagem': 'Alerta reconhecido.',
+        'erros': const [],
+      });
+    }
+
     if (corpo['acao'] == 'resolver') {
-      alertas.firstWhere((a) => a['id'] == corpo['alerta_id'])['resolvido'] = 1;
+      final alvo = alertas.firstWhere((a) => a['id'] == corpo['alerta_id']);
+      alvo['resolvido'] = 1;
+      alvo['status'] = 'resolvido';
       return json({
         'sucesso': true,
         'mensagem': 'Alerta marcado como resolvido.',
@@ -521,11 +710,12 @@ class ServidorFalso {
           'erros': const [],
         });
 
+      case 'desativar':
       case 'excluir':
         usuarios.removeWhere((_, u) => u['id'] == corpo['id']);
         return json({
           'sucesso': true,
-          'mensagem': 'Usuário excluído com sucesso!',
+          'mensagem': 'Usuário desativado com sucesso!',
           'erros': const [],
         });
     }

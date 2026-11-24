@@ -21,6 +21,29 @@ enum Severidade {
   }
 }
 
+/// Ciclo de vida de um alerta (`alertas.status`).
+///
+/// pendente → reconhecido → normalizado (automático, ao chegar valor normal)
+/// → resolvido (registra responsável, horário e observações).
+enum StatusAlerta {
+  pendente('pendente', 'Pendente'),
+  reconhecido('reconhecido', 'Reconhecido'),
+  normalizado('normalizado', 'Normalizado'),
+  resolvido('resolvido', 'Resolvido');
+
+  final String chave;
+  final String label;
+
+  const StatusAlerta(this.chave, this.label);
+
+  static StatusAlerta porChave(String? chave) {
+    return StatusAlerta.values.firstWhere(
+      (s) => s.chave == chave,
+      orElse: () => StatusAlerta.pendente,
+    );
+  }
+}
+
 /// Alerta gerado por um sensor (linha da tabela `alertas`).
 /// O tipo e o nome do sensor vêm do JOIN feito pela API.
 class Alerta {
@@ -32,6 +55,17 @@ class Alerta {
   final double? valor;
   final bool resolvido;
   final DateTime criadoEm;
+  final StatusAlerta status;
+  final int estoqueId;
+  final String? estoqueNome;
+  final bool automatico;
+  final String? reconhecidoPor;
+  final String? resolvidoPor;
+  final String? observacoes;
+
+  /// Ainda exige atenção da equipe (pendente ou apenas reconhecido).
+  bool get emAberto =>
+      status == StatusAlerta.pendente || status == StatusAlerta.reconhecido;
 
   const Alerta({
     required this.id,
@@ -42,6 +76,13 @@ class Alerta {
     this.valor,
     this.resolvido = false,
     required this.criadoEm,
+    this.status = StatusAlerta.pendente,
+    this.estoqueId = 0,
+    this.estoqueNome,
+    this.automatico = false,
+    this.reconhecidoPor,
+    this.resolvidoPor,
+    this.observacoes,
   });
 
   factory Alerta.fromJson(Map<String, dynamic> json) {
@@ -57,6 +98,20 @@ class Alerta {
           json['resolvido'] == 1 ||
           json['resolvido'] == '1',
       criadoEm: DateTime.parse(json['criado_em'] as String),
+      // Sem `status` (servidor antigo), deriva do campo legado `resolvido`.
+      status: json['status'] != null
+          ? StatusAlerta.porChave(json['status'] as String?)
+          : ((json['resolvido'] == true ||
+                    json['resolvido'] == 1 ||
+                    json['resolvido'] == '1')
+                ? StatusAlerta.resolvido
+                : StatusAlerta.pendente),
+      estoqueId: int.tryParse('${json['estoque_id'] ?? 0}') ?? 0,
+      estoqueNome: json['estoque_nome'] as String?,
+      automatico: json['automatico'] == true || json['automatico'] == 1,
+      reconhecidoPor: json['reconhecido_nome'] as String?,
+      resolvidoPor: json['resolvido_nome'] as String?,
+      observacoes: json['observacoes'] as String?,
     );
   }
 }

@@ -35,7 +35,7 @@ class GestaoUsuariosScreen extends StatelessWidget {
         ),
         _ItemMenu(
           icone: Icons.person_remove_outlined,
-          titulo: 'Excluir Cadastro',
+          titulo: 'Desativar Cadastro',
           descricao: 'Remover permanentemente um usuário.',
           aoTocar: () => context.go('/usuarios/excluir'),
         ),

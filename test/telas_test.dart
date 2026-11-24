@@ -231,7 +231,7 @@ void main() {
       for (final item in [
         'Realizar Cadastro',
         'Editar Usuário',
-        'Excluir Cadastro',
+        'Desativar Cadastro',
       ]) {
         expect(find.text(item), findsOneWidget, reason: item);
       }
@@ -332,7 +332,7 @@ void main() {
       'excluir: exige buscar, continuar e confirmar; não deixa excluir a si mesmo',
       (tester) async {
         final app = await comoAdmin(tester);
-        await tester.tap(find.text('Excluir Cadastro'));
+        await tester.tap(find.text('Desativar Cadastro'));
         await tester.pumpAndSettle();
 
         // a própria conta é recusada logo na busca
@@ -340,7 +340,7 @@ void main() {
         await tester.tap(find.text('Buscar'));
         await tester.pumpAndSettle();
         expect(
-          find.text('Você não pode excluir seu próprio usuário.'),
+          find.text('Você não pode desativar sua própria conta.'),
           findsOneWidget,
         );
         expect(find.text('Usuário encontrado'), findsNothing);
@@ -373,7 +373,7 @@ void main() {
         await tester.tap(find.text('Buscar'));
         await tester.pumpAndSettle();
         await tocar(tester, find.text('Continuar para exclusão'));
-        await tocar(tester, find.text('Sim, excluir usuário'));
+        await tocar(tester, find.text('Sim, desativar usuário'));
 
         expect(find.text('Usuário excluído com sucesso!'), findsOneWidget);
         expect(app.servidor.usuarios.containsKey('maria.souza'), isFalse);
@@ -391,7 +391,7 @@ void main() {
         for (final destino in [
           'Realizar Cadastro',
           'Editar Usuário',
-          'Excluir Cadastro',
+          'Desativar Cadastro',
         ]) {
           await tester.tap(find.text(destino));
           await tester.pumpAndSettle();

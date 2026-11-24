@@ -43,6 +43,8 @@ class _AkronAppState extends State<AkronApp> {
   void initState() {
     super.initState();
     _appState = widget.appState ?? AppState();
+    // O tema salvo na conta (web e app compartilham) vale ao entrar.
+    _appState.aoCarregarTemaDaConta = widget.tema.aplicarDaConta;
     // O roteador é criado uma única vez; refreshListenable cuida de
     // reavaliar os redirecionamentos (login/admin) quando o estado mudar.
     _router = buildRouter(_appState);

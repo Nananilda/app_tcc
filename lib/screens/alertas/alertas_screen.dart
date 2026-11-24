@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../../models/alerta.dart';
 import '../../state/app_state.dart';
 import '../../theme/cores.dart';
+import '../../widgets/campo_selecao.dart';
 import '../../widgets/feedback_box.dart';
 import '../../widgets/nav_rodape.dart';
 import '../../widgets/section_card.dart';
@@ -30,14 +31,27 @@ class _AlertasScreenState extends State<AlertasScreen> {
   ResultadoOperacao? _feedback;
   bool _carregando = true;
 
+  // Filtros aplicados no SERVIDOR (valem para todas as páginas).
+  // 0 / '' = sem filtro.
+  int _estoqueId = 0;
+  String _severidade = '';
+  String _status = '';
+
   @override
   void initState() {
     super.initState();
+    context.read<AppState>().carregarEstoques();
     _carregar();
   }
 
-  Future<void> _carregar() async {
-    final resultado = await context.read<AppState>().carregarAlertas();
+  Future<void> _carregar({bool acrescentar = false}) async {
+    setState(() => _carregando = true);
+    final resultado = await context.read<AppState>().carregarAlertas(
+      acrescentar: acrescentar,
+      estoqueId: _estoqueId == 0 ? null : _estoqueId,
+      severidade: _severidade,
+      status: _status,
+    );
     if (!mounted) return;
     setState(() {
       _carregando = false;
@@ -45,10 +59,26 @@ class _AlertasScreenState extends State<AlertasScreen> {
     });
   }
 
-  Future<void> _resolver(int id) async {
-    final resultado = await context.read<AppState>().resolverAlerta(id);
+  /// Depois de reconhecer/resolver, recarrega respeitando os filtros atuais.
+  Future<void> _agir(Future<ResultadoOperacao> Function(AppState) acao) async {
+    final app = context.read<AppState>();
+    final resultado = await acao(app);
     if (!mounted) return;
     setState(() => _feedback = resultado);
+    if (!resultado.temErro) await _carregar();
+  }
+
+  Future<void> _reconhecer(int id) => _agir((app) => app.reconhecerAlerta(id));
+
+  Future<void> _resolver(Alerta alerta) async {
+    final observacoes = await showDialog<String>(
+      context: context,
+      builder: (_) => _DialogoResolver(alerta: alerta),
+    );
+    if (observacoes == null || !mounted) return; // cancelou
+    await _agir(
+      (app) => app.resolverAlerta(alerta.id, observacoes: observacoes),
+    );
   }
 
   @override
@@ -56,6 +86,7 @@ class _AlertasScreenState extends State<AlertasScreen> {
     final app = context.watch<AppState>();
     final alertas = app.alertas;
     final contagem = app.contarAlertasPorSeveridade();
+    final estoques = app.estoques;
 
     return TelaPadrao(
       secao: 'Alertas',
@@ -85,7 +116,64 @@ class _AlertasScreenState extends State<AlertasScreen> {
           const SizedBox(height: 16),
         ],
 
-        // Cartões de resumo por severidade (somente alertas pendentes)
+        // Filtros (consulta no servidor)
+        Wrap(
+          spacing: 16,
+          runSpacing: 14,
+          children: [
+            SizedBox(
+              width: 230,
+              child: CampoSelecao<int>(
+                rotulo: 'Estoque',
+                valor: _estoqueId,
+                itens: [
+                  const DropdownMenuItem(value: 0, child: Text('Todos')),
+                  for (final e in estoques)
+                    DropdownMenuItem(value: e.id, child: Text(e.nome)),
+                ],
+                onChanged: (v) {
+                  setState(() => _estoqueId = v ?? 0);
+                  _carregar();
+                },
+              ),
+            ),
+            SizedBox(
+              width: 190,
+              child: CampoSelecao<String>(
+                rotulo: 'Severidade',
+                valor: _severidade,
+                itens: [
+                  const DropdownMenuItem(value: '', child: Text('Todas')),
+                  for (final sev in Severidade.values)
+                    DropdownMenuItem(value: sev.chave, child: Text(sev.label)),
+                ],
+                onChanged: (v) {
+                  setState(() => _severidade = v ?? '');
+                  _carregar();
+                },
+              ),
+            ),
+            SizedBox(
+              width: 190,
+              child: CampoSelecao<String>(
+                rotulo: 'Situação',
+                valor: _status,
+                itens: [
+                  const DropdownMenuItem(value: '', child: Text('Todas')),
+                  for (final st in StatusAlerta.values)
+                    DropdownMenuItem(value: st.chave, child: Text(st.label)),
+                ],
+                onChanged: (v) {
+                  setState(() => _status = v ?? '');
+                  _carregar();
+                },
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+
+        // Cartões de resumo por severidade (alertas em aberto: pendentes + reconhecidos)
         _CartoesSeveridade(contagem: contagem),
         const SizedBox(height: 20),
 
@@ -96,7 +184,7 @@ class _AlertasScreenState extends State<AlertasScreen> {
             child: Column(
               children: [
                 Text(
-                  'Alertas pendentes por severidade',
+                  'Alertas em aberto por severidade',
                   style: TextStyle(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w700,
@@ -115,7 +203,7 @@ class _AlertasScreenState extends State<AlertasScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const TituloCartao('Histórico recente'),
+              TituloCartao('Histórico (${app.totalAlertas})'),
               if (alertas.isEmpty)
                 const TextoVazio('Nenhum alerta registrado.')
               else
@@ -123,9 +211,25 @@ class _AlertasScreenState extends State<AlertasScreen> {
                   _ItemAlerta(
                     alerta: alertas[i],
                     ultimo: i == alertas.length - 1,
-                    podeResolver: app.ehAdmin && !alertas[i].resolvido,
-                    aoResolver: () => _resolver(alertas[i].id),
+                    podeReconhecer:
+                        app.ehAdmin &&
+                        alertas[i].status == StatusAlerta.pendente,
+                    podeResolver:
+                        app.ehAdmin &&
+                        alertas[i].status != StatusAlerta.resolvido,
+                    aoReconhecer: () => _reconhecer(alertas[i].id),
+                    aoResolver: () => _resolver(alertas[i]),
                   ),
+              if (app.temMaisAlertas)
+                Padding(
+                  padding: const EdgeInsets.only(top: 14),
+                  child: OutlinedButton(
+                    onPressed: _carregando
+                        ? null
+                        : () => _carregar(acrescentar: true),
+                    child: const Text('Carregar mais alertas'),
+                  ),
+                ),
             ],
           ),
         ),
@@ -361,13 +465,17 @@ class _ItemAlerta extends StatelessWidget {
   const _ItemAlerta({
     required this.alerta,
     required this.ultimo,
+    required this.podeReconhecer,
     required this.podeResolver,
+    required this.aoReconhecer,
     required this.aoResolver,
   });
 
   final Alerta alerta;
   final bool ultimo;
+  final bool podeReconhecer;
   final bool podeResolver;
+  final VoidCallback aoReconhecer;
   final VoidCallback aoResolver;
 
   @override
@@ -396,23 +504,44 @@ class _ItemAlerta extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         Text(
+          '${alerta.estoqueNome == null ? "" : "${alerta.estoqueNome} · "}'
           '${alerta.sensorNome ?? alerta.sensorTipo.label} | Valor: $valor | '
-          '${dataFmt.format(alerta.criadoEm)} | ${alerta.resolvido ? "Resolvido" : "Pendente"}',
+          '${dataFmt.format(alerta.criadoEm)} | ${alerta.status.label}',
           style: TextStyle(color: c.textoSuave, fontSize: 12.5),
         ),
+        if (alerta.reconhecidoPor != null)
+          Text(
+            'Reconhecido por ${alerta.reconhecidoPor}',
+            style: TextStyle(color: c.textoSuave, fontSize: 12.5),
+          ),
+        if (alerta.resolvidoPor != null)
+          Text(
+            'Resolvido por ${alerta.resolvidoPor}'
+            '${(alerta.observacoes ?? "").isEmpty ? "" : ": ${alerta.observacoes}"}',
+            style: TextStyle(color: c.textoSuave, fontSize: 12.5),
+          ),
       ],
     );
 
-    final botao = podeResolver
-        ? OutlinedButton(
-            onPressed: aoResolver,
-            child: const Text('Marcar resolvido'),
-          )
-        : null;
+    final botoes = [
+      if (podeReconhecer)
+        OutlinedButton(
+          onPressed: aoReconhecer,
+          child: const Text('Reconhecer'),
+        ),
+      if (podeResolver)
+        OutlinedButton(
+          onPressed: aoResolver,
+          child: const Text('Resolver'),
+        ),
+    ];
+    final botao = botoes.isEmpty
+        ? null
+        : Wrap(spacing: 8, runSpacing: 8, children: botoes);
 
     return Opacity(
       // Alertas já resolvidos ficam em segundo plano
-      opacity: alerta.resolvido ? 0.62 : 1,
+      opacity: alerta.status == StatusAlerta.resolvido ? 0.62 : 1,
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 14),
@@ -439,6 +568,68 @@ class _ItemAlerta extends StatelessWidget {
           },
         ),
       ),
+    );
+  }
+}
+
+
+/// Pede as observações (opcionais, até 5000 caracteres) ao resolver um alerta.
+/// Fecha devolvendo o texto, ou nulo se a pessoa cancelar.
+class _DialogoResolver extends StatefulWidget {
+  const _DialogoResolver({required this.alerta});
+
+  final Alerta alerta;
+
+  @override
+  State<_DialogoResolver> createState() => _DialogoResolverState();
+}
+
+class _DialogoResolverState extends State<_DialogoResolver> {
+  final _ctrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Resolver alerta'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(widget.alerta.mensagem),
+          const SizedBox(height: 8),
+          const Text(
+            'Seu nome e o horário ficam registrados. Resolver encerra o '
+            'atendimento, mas não altera o valor ambiental.',
+            style: TextStyle(fontSize: 12.5),
+          ),
+          const SizedBox(height: 14),
+          TextField(
+            controller: _ctrl,
+            maxLines: 3,
+            maxLength: 1500,
+            decoration: const InputDecoration(
+              labelText: 'Observações (opcional)',
+              hintText: 'Ex.: vedação ajustada; leitura estabilizada.',
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancelar'),
+        ),
+        ElevatedButton(
+          onPressed: () => Navigator.of(context).pop(_ctrl.text),
+          child: const Text('Marcar como resolvido'),
+        ),
+      ],
     );
   }
 }

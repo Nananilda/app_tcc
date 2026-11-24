@@ -1,4 +1,5 @@
 import 'package:app_tcc/models/alerta.dart';
+import 'package:app_tcc/models/estoque.dart';
 import 'package:app_tcc/models/sensor.dart';
 import 'package:app_tcc/widgets/campo_selecao.dart';
 import 'package:app_tcc/widgets/tabela_dados.dart';
@@ -56,19 +57,20 @@ void main() {
 
     testWidgets('administrador resolve um alerta pendente', (tester) async {
       final app = await abrir(tester, 'admin', '/alertas');
-      expect(find.text('Marcar resolvido'), findsNWidgets(2));
+      expect(find.text('Resolver'), findsNWidgets(2));
 
-      await tocar(tester, find.text('Marcar resolvido').first);
+      await tocar(tester, find.text('Resolver').first);
+      await tocar(tester, find.text('Marcar como resolvido'));
 
       expect(find.text('Alerta marcado como resolvido.'), findsOneWidget);
-      expect(find.text('Marcar resolvido'), findsOneWidget);
+      expect(find.text('Resolver'), findsOneWidget);
       expect(
         app.servidor
             .chamadasA('alertas.php')
             .where((r) => r.metodo == 'POST')
             .single
             .corpo,
-        {'acao': 'resolver', 'alerta_id': 1},
+        {'acao': 'resolver', 'alerta_id': 1, 'observacoes': ''},
       );
     });
 
@@ -78,7 +80,7 @@ void main() {
       await abrir(tester, 'maria.souza', '/alertas');
 
       expect(find.text('— Temperatura acima do limite'), findsOneWidget);
-      expect(find.text('Marcar resolvido'), findsNothing);
+      expect(find.text('Resolver'), findsNothing);
     });
 
     testWidgets('só o administrador vê o botão "Adicionar alerta"', (
@@ -189,7 +191,7 @@ void main() {
       GoRouter.of(tester.element(find.byType(Scaffold).first)).go('/alertas');
       await tester.pumpAndSettle();
       expect(find.text('— Manutenção da prensa amanhã'), findsOneWidget);
-      expect(find.text('Marcar resolvido'), findsNWidgets(3));
+      expect(find.text('Resolver'), findsNWidgets(3));
     });
 
     testWidgets('registrar leitura acima do limite gera alerta automático', (
@@ -328,6 +330,7 @@ void main() {
       await tocar(tester, find.text('Cadastrar Sensor'));
       expect(find.text('Mínimo 3 caracteres.'), findsOneWidget);
       expect(find.text('Selecione um tipo.'), findsOneWidget);
+      expect(find.text('Selecione o estoque.'), findsOneWidget);
       expect(app.servidor.sensores, hasLength(2));
 
       // preenchido
@@ -335,6 +338,8 @@ void main() {
       await digitar(tester, 'Localização', 'Pátio externo');
       await tocar(tester, find.byType(CampoSelecao<TipoSensor>));
       await tocar(tester, find.text('Umidade').last);
+      await tocar(tester, find.byType(CampoSelecao<Estoque>));
+      await tocar(tester, find.text('Galpão A').last);
       await tocar(tester, find.text('Cadastrar Sensor'));
 
       expect(find.text('Sensor cadastrado com sucesso!'), findsOneWidget);

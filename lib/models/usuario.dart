@@ -45,6 +45,10 @@ class Usuario {
   final StatusConta status;
   final DateTime criadoEm;
 
+  /// Estoques que o funcionário pode consultar (o administrador vê todos,
+  /// independentemente desta lista).
+  final List<int> estoqueIds;
+
   Usuario({
     required this.id,
     required this.nome,
@@ -52,6 +56,7 @@ class Usuario {
     required this.tipo,
     this.status = StatusConta.ativo,
     DateTime? criadoEm,
+    this.estoqueIds = const [],
   }) : criadoEm = criadoEm ?? DateTime.now();
 
   factory Usuario.fromJson(Map<String, dynamic> json) {
@@ -64,6 +69,10 @@ class Usuario {
       criadoEm: json['criado_em'] != null
           ? DateTime.tryParse(json['criado_em'].toString()) ?? DateTime.now()
           : DateTime.now(),
+      estoqueIds: [
+        for (final v in (json['estoque_ids'] as List? ?? []))
+          if (int.tryParse('$v') != null) int.parse('$v'),
+      ],
     );
   }
 }

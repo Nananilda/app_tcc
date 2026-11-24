@@ -13,6 +13,7 @@ import '../../widgets/section_card.dart';
 import '../../widgets/tela_padrao.dart';
 import '../../widgets/titulos.dart';
 import 'campos_acesso_usuario.dart';
+import 'selecao_estoques_usuario.dart';
 
 /// Cadastro de usuário (somente administradores) — equivale a
 /// app/views/usuarios/cadastro.php.
@@ -35,6 +36,7 @@ class _CadastroUsuarioScreenState extends State<CadastroUsuarioScreen> {
   final _confirmarCtrl = TextEditingController();
   TipoUsuario _tipo = TipoUsuario.usuario;
   StatusConta _status = StatusConta.ativo;
+  Set<int> _estoqueIds = {};
 
   ResultadoOperacao? _feedback;
   bool _enviando = false;
@@ -63,6 +65,8 @@ class _CadastroUsuarioScreenState extends State<CadastroUsuarioScreen> {
       confirmar: _confirmarCtrl.text,
       tipo: _tipo,
       status: _status,
+      // Só o funcionário tem vínculos; o administrador vê todos os estoques.
+      estoqueIds: _tipo == TipoUsuario.admin ? const [] : _estoqueIds.toList(),
     );
     if (!mounted) return;
 
@@ -80,6 +84,7 @@ class _CadastroUsuarioScreenState extends State<CadastroUsuarioScreen> {
         _confirmarCtrl.clear();
         _tipo = TipoUsuario.usuario;
         _status = StatusConta.ativo;
+        _estoqueIds = {};
       }
     });
   }
@@ -163,6 +168,13 @@ class _CadastroUsuarioScreenState extends State<CadastroUsuarioScreen> {
                   explicarTipo: true,
                   aoMudarTipo: (v) => setState(() => _tipo = v),
                   aoMudarStatus: (v) => setState(() => _status = v),
+                ),
+                const SizedBox(height: 22),
+                const RotuloSecao('Estoques liberados'),
+                SelecaoEstoquesUsuario(
+                  tipo: _tipo,
+                  selecionados: _estoqueIds,
+                  aoMudar: (v) => setState(() => _estoqueIds = v),
                 ),
                 const SizedBox(height: 24),
                 BotaoPrincipal(

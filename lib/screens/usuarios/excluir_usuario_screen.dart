@@ -90,7 +90,7 @@ class _ExcluirUsuarioScreenState extends State<ExcluirUsuarioScreen> {
         );
       } else if (encontrado.id == app.usuarioLogado?.id) {
         _feedback = const ResultadoOperacao(
-          erros: ['Você não pode excluir seu próprio usuário.'],
+          erros: ['Você não pode desativar sua própria conta.'],
         );
       } else {
         _feedback = null;
@@ -130,7 +130,7 @@ class _ExcluirUsuarioScreenState extends State<ExcluirUsuarioScreen> {
       larguraMaxima: 700,
       children: [
         const TituloPagina(
-          'Excluir Usuário',
+          'Desativar Usuário',
           subtitulo: 'Busque um usuário pelo login e exclua seu cadastro.',
         ),
         AreaFeedback(resultado: _feedback),
@@ -159,7 +159,7 @@ class _ExcluirUsuarioScreenState extends State<ExcluirUsuarioScreen> {
                   const Padding(
                     padding: EdgeInsets.only(bottom: 12),
                     child: Text(
-                      'Você está prestes a excluir permanentemente o seguinte usuário:',
+                      'Você está prestes a desativar a conta do seguinte usuário. O histórico é preservado e a conta deixa de acessar o sistema:',
                     ),
                   ),
                 _DadosDoUsuario(usuario: usuario),
@@ -180,7 +180,7 @@ class _ExcluirUsuarioScreenState extends State<ExcluirUsuarioScreen> {
                   children: [
                     BotaoPerigo(
                       texto: _confirmando
-                          ? 'Sim, excluir usuário'
+                          ? 'Sim, desativar usuário'
                           : 'Continuar para exclusão',
                       ocupado: _excluindo,
                       aoPressionar: _confirmando

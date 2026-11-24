@@ -15,6 +15,7 @@ import '../../widgets/section_card.dart';
 import '../../widgets/tela_padrao.dart';
 import '../../widgets/titulos.dart';
 import 'campos_acesso_usuario.dart';
+import 'selecao_estoques_usuario.dart';
 
 /// Editar usuário (somente administradores) — equivale a
 /// app/views/usuarios/editar.php.
@@ -39,6 +40,7 @@ class _EditarUsuarioScreenState extends State<EditarUsuarioScreen> {
   final _confirmarCtrl = TextEditingController();
   TipoUsuario _tipo = TipoUsuario.usuario;
   StatusConta _status = StatusConta.ativo;
+  Set<int> _estoqueIds = {};
 
   /// Usuário carregado no formulário de edição (nulo = formulário oculto).
   Usuario? _usuario;
@@ -72,6 +74,7 @@ class _EditarUsuarioScreenState extends State<EditarUsuarioScreen> {
     _loginCtrl.text = usuario.login;
     _tipo = usuario.tipo;
     _status = usuario.status;
+    _estoqueIds = usuario.estoqueIds.toSet();
     _senhaCtrl.clear();
     _confirmarCtrl.clear();
   }
@@ -126,6 +129,8 @@ class _EditarUsuarioScreenState extends State<EditarUsuarioScreen> {
       status: _status,
       senha: _senhaCtrl.text,
       confirmarSenha: _confirmarCtrl.text,
+      // Lista vazia revoga todos os vínculos; o administrador não usa vínculos.
+      estoqueIds: _tipo == TipoUsuario.admin ? const [] : _estoqueIds.toList(),
     );
 
     // Gravou: recarrega do servidor o que ficou salvo (como o sistema web faz)
@@ -248,6 +253,13 @@ class _EditarUsuarioScreenState extends State<EditarUsuarioScreen> {
                         'Usuários inativos não podem acessar o sistema.',
                     aoMudarTipo: (v) => setState(() => _tipo = v),
                     aoMudarStatus: (v) => setState(() => _status = v),
+                  ),
+                  const SizedBox(height: 22),
+                  const RotuloSecao('Estoques liberados'),
+                  SelecaoEstoquesUsuario(
+                    tipo: _tipo,
+                    selecionados: _estoqueIds,
+                    aoMudar: (v) => setState(() => _estoqueIds = v),
                   ),
                   const SizedBox(height: 24),
                   BotaoPrincipal(

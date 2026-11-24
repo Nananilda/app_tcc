@@ -224,7 +224,7 @@ void main() {
 
       final r = await app.excluirUsuario(app.usuarioLogado!.id);
 
-      expect(r.erros, ['Você não pode excluir seu próprio usuário.']);
+      expect(r.erros, ['Você não pode desativar sua própria conta.']);
       expect(servidor.chamadasA('usuarios.php'), isEmpty);
     });
 
@@ -262,6 +262,7 @@ void main() {
       final r = await app.cadastrarSensor(
         nome: 'ab',
         tipo: null,
+        estoque: null,
         localizacao: '',
         status: StatusSensor.ativo,
       );
@@ -269,6 +270,7 @@ void main() {
       expect(r.erros, [
         'Nome do sensor deve ter ao menos 3 caracteres.',
         'Tipo de sensor inválido.',
+        'Selecione o estoque do sensor.',
       ]);
       expect(servidor.chamadasA('sensores.php'), isEmpty);
     });
@@ -278,6 +280,7 @@ void main() {
       final r = await app.cadastrarSensor(
         nome: 'Sensor novo',
         tipo: TipoSensor.uv,
+        estoque: null,
         localizacao: '',
         status: StatusSensor.ativo,
       );
@@ -285,7 +288,43 @@ void main() {
     });
   });
 
+  group('estoques', () {
+    test('carrega os três estados independentes', () async {
+      await entrarComo('maria.souza');
+      final r = await app.carregarEstoques();
+      expect(r.temErro, isFalse);
+      final e = app.estoques.single;
+      expect(e.condicao.chave, 'atencao');
+      expect(e.comunicacao.chave, 'parcial');
+      expect(e.ativo, isTrue);
+    });
+
+    test('funcionário não cadastra estoque', () async {
+      await entrarComo('maria.souza');
+      final r = await app.cadastrarEstoque(nome: 'Novo');
+      expect(r.erros, ['Acesso negado.']);
+    });
+
+    test('administrador desativa estoque (histórico preservado)', () async {
+      await entrarComo('admin');
+      await app.carregarEstoques();
+      final r = await app.desativarEstoque(1);
+      expect(r.temErro, isFalse);
+      expect(servidor.estoques.first['status'], 'inativo');
+    });
+  });
+
   group('alertas', () {
+    test('reconhecer muda o status para reconhecido', () async {
+      await entrarComo('admin');
+      final r = await app.reconhecerAlerta(1);
+      expect(r.temErro, isFalse);
+      expect(
+        app.alertas.firstWhere((a) => a.id == 1).status.chave,
+        'reconhecido',
+      );
+    });
+
     test(
       'carregar alertas traz também os limites automáticos do servidor',
       () async {

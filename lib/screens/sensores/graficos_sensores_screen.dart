@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../../models/estoque.dart';
 import '../../models/leitura.dart';
 import '../../models/sensor.dart';
 import '../../state/app_state.dart';
@@ -41,6 +42,9 @@ class GraficosSensoresScreen extends StatefulWidget {
 class _GraficosSensoresScreenState extends State<GraficosSensoresScreen> {
   TipoSensor _sensor = TipoSensor.temperatura;
   int _horas = 24;
+
+  /// Estoque filtrado (nulo = todos os que o usuário pode ver).
+  Estoque? _estoque;
   SerieLeituras _serie = SerieLeituras.vazia;
   String? _erro;
   Timer? _timer;
@@ -53,6 +57,8 @@ class _GraficosSensoresScreenState extends State<GraficosSensoresScreen> {
   @override
   void initState() {
     super.initState();
+    // A lista de estoques alimenta o filtro; a série não depende dela.
+    context.read<AppState>().carregarEstoques();
     _atualizar();
     _timer = Timer.periodic(const Duration(seconds: 15), (_) => _atualizar());
   }
@@ -68,6 +74,7 @@ class _GraficosSensoresScreenState extends State<GraficosSensoresScreen> {
     final resposta = await context.read<AppState>().carregarLeituras(
       _sensor,
       _horas,
+      estoqueId: _estoque?.id,
     );
     if (!mounted || consulta != _ultimaConsulta) {
       return; // já existe uma consulta mais nova
@@ -86,6 +93,7 @@ class _GraficosSensoresScreenState extends State<GraficosSensoresScreen> {
   @override
   Widget build(BuildContext context) {
     final c = context.cores;
+    final estoques = context.watch<AppState>().estoques;
 
     return TelaPadrao(
       secao: 'Gráficos',
@@ -112,6 +120,22 @@ class _GraficosSensoresScreenState extends State<GraficosSensoresScreen> {
               ),
             ),
             SizedBox(
+              width: 260,
+              child: CampoSelecao<Estoque>(
+                rotulo: 'Estoque',
+                valor: _estoque,
+                dica: 'Todos os estoques',
+                itens: [
+                  for (final e in estoques)
+                    DropdownMenuItem(value: e, child: Text(e.nome)),
+                ],
+                onChanged: (v) {
+                  setState(() => _estoque = v);
+                  _atualizar();
+                },
+              ),
+            ),
+            SizedBox(
               width: 180,
               child: CampoSelecao<int>(
                 rotulo: 'Período',
@@ -129,6 +153,17 @@ class _GraficosSensoresScreenState extends State<GraficosSensoresScreen> {
             ),
           ],
         ),
+        if (_estoque != null)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              onPressed: () {
+                setState(() => _estoque = null);
+                _atualizar();
+              },
+              child: const Text('Mostrar todos os estoques'),
+            ),
+          ),
         const Divider(),
         Wrap(
           crossAxisAlignment: WrapCrossAlignment.center,
@@ -163,6 +198,25 @@ class _GraficosSensoresScreenState extends State<GraficosSensoresScreen> {
                   ),
           ),
         ),
+        _LegendaSensores(serie: _serie),
+        if (_serie.lacunas.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(
+              'Há ${_serie.lacunas.length} período(s) sem leituras. O gráfico '
+              'não liga pontos separados por uma lacuna de comunicação.',
+              style: TextStyle(color: c.textoSuave, fontSize: 12.5),
+            ),
+          ),
+        if (_serie.sensoresDesatualizados.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: FeedbackBox.aviso(
+              'Sem dados recentes: ${_nomesDosSensores(_serie, _serie.sensoresDesatualizados)}. '
+              'O último valor desses sensores está fora do prazo de comunicação.',
+            ),
+          ),
+        const SizedBox(height: 6),
         Text(
           'Total de leituras: ${_serie.total}',
           style: TextStyle(color: c.textoSuave, fontSize: 13),
@@ -229,7 +283,79 @@ class _SeloTempoReal extends StatelessWidget {
   }
 }
 
-/// Gráfico de linha das leituras (cores vindas do tema claro/escuro).
+/// Cores das linhas: a primeira vem do tema; as demais distinguem os sensores.
+List<Color> _paleta(AkronCores c) => [
+  c.graficoLinha,
+  const Color(0xFFE08A00),
+  const Color(0xFF2E9E6B),
+  const Color(0xFF8E5BD6),
+  const Color(0xFFD64B7A),
+  const Color(0xFF3B9BC8),
+];
+
+/// Nomes (separados por vírgula) dos sensores de [ids] presentes na série.
+String _nomesDosSensores(SerieLeituras serie, List<int> ids) {
+  final nomes = <int, String>{
+    for (final p in serie.pontos)
+      if (p.sensorNome != null) p.sensorId: p.sensorNome!,
+  };
+  return ids.map((id) => nomes[id] ?? 'sensor $id').join(', ');
+}
+
+/// Divide a lista de um sensor em trechos contínuos: um ponto com
+/// `lacunaAntes` inicia outro trecho (não se liga o que a lacuna separa).
+List<List<Leitura>> _trechos(List<Leitura> pontos) {
+  final trechos = <List<Leitura>>[];
+  for (final p in pontos) {
+    if (trechos.isEmpty || p.lacunaAntes) trechos.add([]);
+    trechos.last.add(p);
+  }
+  return trechos;
+}
+
+/// Legenda: cor de cada linha e o sensor a que pertence.
+class _LegendaSensores extends StatelessWidget {
+  const _LegendaSensores({required this.serie});
+
+  final SerieLeituras serie;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.cores;
+    final cores = _paleta(c);
+    final porSensor = serie.porSensor;
+    if (porSensor.length < 2) return const SizedBox.shrink();
+    var i = 0;
+    return Wrap(
+      spacing: 16,
+      runSpacing: 6,
+      children: [
+        for (final entrada in porSensor.entries)
+          Builder(
+            builder: (_) {
+              final cor = cores[(i++) % cores.length];
+              final nome = entrada.value.first.sensorNome ?? 'Sensor ${entrada.key}';
+              final estoque = entrada.value.first.estoqueNome;
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(width: 12, height: 3, color: cor),
+                  const SizedBox(width: 6),
+                  Text(
+                    estoque == null ? nome : '$nome · $estoque',
+                    style: TextStyle(fontSize: 12.5, color: c.textoSuave),
+                  ),
+                ],
+              );
+            },
+          ),
+      ],
+    );
+  }
+}
+
+/// Gráfico de linha das leituras: UMA linha por sensor, eixo X em tempo real
+/// (cores vindas do tema claro/escuro).
 class _GraficoLinha extends StatelessWidget {
   const _GraficoLinha({
     required this.serie,
@@ -244,14 +370,28 @@ class _GraficoLinha extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.cores;
-    final leituras = serie.pontos;
-    final spots = [
-      for (var i = 0; i < leituras.length; i++)
-        FlSpot(i.toDouble(), leituras[i].valor),
-    ];
-    final valores = leituras.map((l) => l.valor);
+    final cores = _paleta(c);
+
+    // Cada trecho contínuo de cada sensor vira uma linha do gráfico.
+    final trechos = <List<Leitura>>[];
+    final corDoTrecho = <Color>[];
+    var indiceSensor = 0;
+    for (final lista in serie.porSensor.values) {
+      final cor = cores[indiceSensor++ % cores.length];
+      for (final t in _trechos(lista)) {
+        trechos.add(t);
+        corDoTrecho.add(cor);
+      }
+    }
+    double xDe(Leitura l) => l.lidoEm.millisecondsSinceEpoch.toDouble();
+
+    final todos = serie.pontos;
+    final valores = todos.map((l) => l.valor);
     final menor = valores.reduce((a, b) => a < b ? a : b);
     final maior = valores.reduce((a, b) => a > b ? a : b);
+    var minX = todos.map(xDe).reduce(math.min);
+    var maxX = todos.map(xDe).reduce(math.max);
+    if (maxX <= minX) maxX = minX + 60000; // um só instante: abre 1 minuto
 
     // Limites e intervalo do eixo Y "redondos": o mínimo e o máximo caem em
     // linhas da grade, então nenhum rótulo se sobrepõe a outro.
@@ -264,9 +404,12 @@ class _GraficoLinha extends StatelessWidget {
     final rotuloDica = DateFormat('dd/MM HH:mm');
     final numero = NumberFormat('#,##0.##', 'pt_BR');
     final estiloEixo = TextStyle(color: c.graficoTexto, fontSize: 10.5);
+    final intervaloX = (maxX - minX) / 4;
 
     return LineChart(
       LineChartData(
+        minX: minX,
+        maxX: maxX,
         minY: minY,
         maxY: maxY,
         gridData: FlGridData(
@@ -298,20 +441,18 @@ class _GraficoLinha extends StatelessWidget {
             sideTitles: SideTitles(
               showTitles: true,
               reservedSize: horas > 48 ? 40 : 28,
-              interval: (leituras.length / 5).clamp(1, double.infinity),
-              getTitlesWidget: (valor, meta) {
-                final i = valor.toInt();
-                if (i < 0 || i >= leituras.length) return const SizedBox();
-                return SideTitleWidget(
-                  meta: meta,
-                  space: 8,
-                  child: Text(
-                    rotuloX.format(leituras[i].lidoEm),
-                    textAlign: TextAlign.center,
-                    style: estiloEixo,
+              interval: intervaloX,
+              getTitlesWidget: (valor, meta) => SideTitleWidget(
+                meta: meta,
+                space: 8,
+                child: Text(
+                  rotuloX.format(
+                    DateTime.fromMillisecondsSinceEpoch(valor.toInt()),
                   ),
-                );
-              },
+                  textAlign: TextAlign.center,
+                  style: estiloEixo,
+                ),
+              ),
             ),
           ),
         ),
@@ -329,7 +470,9 @@ class _GraficoLinha extends StatelessWidget {
                   ),
                   children: [
                     TextSpan(
-                      text: rotuloDica.format(leituras[toque.x.toInt()].lidoEm),
+                      text:
+                          '${trechos[toque.barIndex][toque.spotIndex].sensorNome ?? 'Sensor'}'
+                          ' · ${rotuloDica.format(trechos[toque.barIndex][toque.spotIndex].lidoEm)}',
                       style: TextStyle(
                         color: c.textoSuave,
                         fontWeight: FontWeight.w400,
@@ -342,15 +485,22 @@ class _GraficoLinha extends StatelessWidget {
           ),
         ),
         lineBarsData: [
-          LineChartBarData(
-            spots: spots,
-            isCurved: true,
-            curveSmoothness: 0.25,
-            color: c.graficoLinha,
-            barWidth: 2.4,
-            dotData: FlDotData(show: leituras.length <= 30),
-            belowBarData: BarAreaData(show: true, color: c.graficoArea),
-          ),
+          for (var i = 0; i < trechos.length; i++)
+            LineChartBarData(
+              spots: [for (final l in trechos[i]) FlSpot(xDe(l), l.valor)],
+              // Sem curva: suavizar sugeriria valores que ninguém mediu.
+              isCurved: false,
+              color: corDoTrecho[i],
+              barWidth: 2.4,
+              // Trecho de 1–2 pontos (isolado por lacunas) fica visível com pontos.
+              dotData: FlDotData(
+                show: trechos[i].length <= 2 || todos.length <= 30,
+              ),
+              belowBarData: BarAreaData(
+                show: trechos.length == 1,
+                color: c.graficoArea,
+              ),
+            ),
         ],
       ),
     );
